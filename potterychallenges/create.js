@@ -1,7 +1,7 @@
 // Create (a new challenge from a short prompt) and Remix (change an existing one).
 // The server function does the writing and the safety checking; this file is only the screens:
 // ask, wait, preview, then Save / Try again / Discard. Nothing is kept until Save is tapped.
-import { el, renderCard, TIME_LABEL } from './card.js?v=0.10';
+import { el, renderCard, TIME_LABEL } from './card.js?v=0.11';
 
 const REMIX_CHOICES = [
   ['easier', 'Easier'], ['harder', 'Harder'], ['quicker', 'Quicker and smaller'], ['set', 'Giftable set of 3–4'],

@@ -1,10 +1,10 @@
 // Projects: marking a challenge done, the up-next queue, stages, and per-project details.
 // One project is one attempt at one challenge. Everything from the data goes in with
 // textContent, never as HTML.
-import { el, renderCard } from './card.js?v=0.10';
-import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.10';
+import { el, renderCard } from './card.js?v=0.11';
+import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.11';
 import { Timestamp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { prepareImage } from './image.js?v=0.10';
+import { prepareImage } from './image.js?v=0.11';
 
 export function createProjects({ data, taxonomy }) {
   const catLabel = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
@@ -15,7 +15,12 @@ export function createProjects({ data, taxonomy }) {
   document.body.append(dlg);
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
   const closeSheet = () => { if (dlg.open) dlg.close(); };
-  const openSheet = (...kids) => { dlg.replaceChildren(...kids); if (!dlg.open) dlg.showModal(); };
+  const openSheet = (...kids) => {
+    dlg.replaceChildren(...kids);
+    // A sheet that holds a text box is anchored to the top so the keyboard never has to move it.
+    dlg.classList.toggle('top', Boolean(dlg.querySelector('textarea, input[type="text"], input:not([type])')));
+    if (!dlg.open) dlg.showModal();
+  };
   const cancelBtn = (text = 'Cancel') => { const b = el('button', { type: 'button', className: 'btn ghost', textContent: text }); b.addEventListener('click', closeSheet); return b; };
 
   const toastEl = el('div', { className: 'toast', role: 'status', hidden: true });

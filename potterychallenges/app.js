@@ -8,11 +8,11 @@ import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { getStorage } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-functions.js';
-import { mountReview } from './review.js?v=0.10';
-import { createData } from './data.js?v=0.10';
-import { createBrowse } from './browse.js?v=0.10';
-import { createProjects } from './projects.js?v=0.10';
-import { createCreator } from './create.js?v=0.10';
+import { mountReview } from './review.js?v=0.11';
+import { createData } from './data.js?v=0.11';
+import { createBrowse } from './browse.js?v=0.11';
+import { createProjects } from './projects.js?v=0.11';
+import { createCreator } from './create.js?v=0.11';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -31,7 +31,7 @@ const functions = getFunctions(app, 'us-central1');
 const callServer = (name) => async (input) => (await httpsCallable(functions, name, { timeout: 120000 })(input)).data;
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.10', date: 'Nov 22', whatsNew: "Create a challenge from a short prompt, or remix any challenge. Kept ones live under Library, then Mine." };
+const VERSION = { number: '0.11', date: 'Nov 22', whatsNew: "Fix: the screen no longer jumps while you type in a sheet." };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
@@ -77,15 +77,32 @@ addEventListener('hashchange', () => { if (location.hash === '#debug') showSnapl
 snaplog('page load');
 addEventListener('pc-log', (e) => snaplog(String(e.detail)));
 
-// iPhones don't shrink the page when the keyboard opens; track its height so popups can lift.
+// iPhones don't shrink the page when the keyboard opens. Two values are tracked so bottom-anchored
+// things (the toast and banners) can stay above the keyboard, and so a sheet with a text box can
+// size itself to the space that is left:
+//   --kb   how tall the keyboard is        --vvh  how tall the visible area is
+// This is deliberately calm. It listens to resize only (NOT scroll: the phone nudges the view toward the
+// cursor while typing, and reacting to that fed back into the layout and made the screen jump), it
+// ignores changes under 30 px (the predictive-text bar appearing and disappearing while you type),
+// and it waits for the next frame. Nothing that holds a text box is ever moved by --kb.
 if (window.visualViewport) {
   const vv = window.visualViewport;
+  const root = document.documentElement.style;
+  let kb = 0, vvh = 0, frame = 0;
   const lift = () => {
-    const kb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
-    document.documentElement.style.setProperty('--kb', kb + 'px');
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      const nextKb = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+      const nextH = Math.round(vv.height);
+      if (Math.abs(nextKb - kb) >= 30 || (nextKb === 0) !== (kb === 0)) {
+        kb = nextKb;
+        root.setProperty('--kb', kb + 'px');
+        snaplog(`viewport: keyboard ${kb}px`);
+      }
+      if (Math.abs(nextH - vvh) >= 30) { vvh = nextH; root.setProperty('--vvh', vvh + 'px'); }
+    });
   };
   vv.addEventListener('resize', lift);
-  vv.addEventListener('scroll', lift);
   lift();
 }
 
