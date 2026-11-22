@@ -1,14 +1,14 @@
 // Draw tab (one challenge at a time, random, with filters) and Library tab (a list to browse),
 // plus the small settings block on the Me tab.
-import { el, renderCard, hasSafetyNotes, TIME_LABEL } from './card.js?v=0.9';
-import { NO_FILTERS, OUTSIDE_FIRINGS, DEFAULT_FIRINGS, pick, pushRecent, dots } from './logic.js?v=0.9';
+import { el, renderCard, hasSafetyNotes, TIME_LABEL } from './card.js?v=0.10';
+import { NO_FILTERS, OUTSIDE_FIRINGS, DEFAULT_FIRINGS, pick, pushRecent, dots } from './logic.js?v=0.10';
 
 const store = (key, value) => {
   try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) { return null; }
 };
 const SEASON_LABEL = { spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter', valentines: "Valentine's", easter: 'Easter', halloween: 'Halloween', christmas: 'Christmas' };
 
-export function createBrowse({ data, taxonomy, projects, drawRoot, libRoot, meRoot }) {
+export function createBrowse({ data, taxonomy, projects, creator, drawRoot, libRoot, meRoot }) {
   const catLabel = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
 
   // ---------- shared bits ----------
@@ -60,7 +60,7 @@ export function createBrowse({ data, taxonomy, projects, drawRoot, libRoot, meRo
       select('Difficulty', diffs, filters.difficulty, (v) => setFilter('difficulty', v)),
       select('Time', times, filters.timeBand, (v) => setFilter('timeBand', v)),
       select('Season', seasons, filters.season, (v) => setFilter('season', v)));
-    drawRoot.replaceChildren(bar);
+    drawRoot.replaceChildren(el('div', { className: 'act-wide top' }, creator.createButton()), bar);
     if (note) drawRoot.append(el('div', { className: 'rv-note', role: 'status', textContent: note }));
 
     if (!data.all().length) {
@@ -97,11 +97,49 @@ export function createBrowse({ data, taxonomy, projects, drawRoot, libRoot, meRo
     });
     const other = el('button', { type: 'button', className: 'btn primary', textContent: secondaryText });
     other.addEventListener('click', onSecondary);
-    return el('div', { className: 'act' }, el('div', { className: 'rv-actions' }, fav, other), projects.challengeButtons(c));
+    return el('div', { className: 'act' }, el('div', { className: 'rv-actions' }, fav, other), projects.challengeButtons(c), el('div', { className: 'act-wide' }, creator.remixButton(c)));
   }
 
   // ---------- Library ----------
   const lib = { mode: 'all', category: 'any', openId: null };
+
+  function deleteMineButton(c) {
+    const b = el('button', { type: 'button', className: 'btn danger', textContent: 'Delete this challenge' });
+    b.addEventListener('click', () => {
+      const yes = el('button', { type: 'button', className: 'btn danger', textContent: 'Delete it' });
+      yes.addEventListener('click', async () => {
+        yes.disabled = true;
+        try { await data.deleteMine(c); projects.ui.closeSheet(); projects.ui.toast('Deleted.'); lib.openId = null; current = null; renderLibrary(); }
+        catch (e) { projects.ui.fail(e); yes.disabled = false; }
+      });
+      projects.ui.openSheet(el('h3', { textContent: 'Delete this challenge?' }),
+        el('p', { textContent: 'It is removed from Mine. Projects you made from it keep their notes and photos.' }), yes, projects.ui.cancelBtn('Keep it'));
+    });
+    return b;
+  }
+
+  function renderMine() {
+    libRoot.append(el('div', { className: 'act-wide top' }, creator.createButton()));
+    const rows = data.mine();
+    if (!rows.length) {
+      libRoot.append(el('div', { className: 'card empty' }, el('p', {}, el('b', { textContent: 'Nothing here yet.' })),
+        el('p', { className: 'muted', textContent: 'Tap ✦ Create a challenge, or ✦ Remix on any challenge, and keep the ones you like.' })));
+      return;
+    }
+    libRoot.append(el('p', { className: 'muted rv-count', textContent: `${rows.length} made by you` }));
+    const ul = el('div', { className: 'lib-list' });
+    for (const c of rows) {
+      const row = el('button', { type: 'button', className: 'lib-row' },
+        el('span', { className: 'num', textContent: '✦' }),
+        el('span', { className: 'lib-main' },
+          el('span', { className: 'lib-title', textContent: c.content.title }),
+          el('span', { className: 'lib-meta' }, el('span', { className: 'dots', textContent: dots(c.difficulty) }), ` ${TIME_LABEL[c.timeBand] ?? c.timeBand} · ${catLabel[c.category] ?? c.category}`)),
+        el('span', { className: 'lib-tags', textContent: data.isFavorite(c.id) ? '♥' : '' }));
+      row.addEventListener('click', () => { lib.openId = c.id; renderLibrary(); scrollTo(0, 0); });
+      ul.append(row);
+    }
+    libRoot.append(ul);
+  }
 
   function renderLibrary() {
     libRoot.replaceChildren();
@@ -109,6 +147,7 @@ export function createBrowse({ data, taxonomy, projects, drawRoot, libRoot, meRo
       const c = data.byId(lib.openId);
       if (!c) { lib.openId = null; return renderLibrary(); }
       libRoot.append(renderCard(c, catLabel), actions(c, () => { lib.openId = null; renderLibrary(); scrollTo(0, 0); }, '← Back'));
+      if (c.isMine) libRoot.append(el('div', { className: 'act-wide top' }, deleteMineButton(c)));
       return;
     }
     const seg = (mode, text) => {
@@ -117,7 +156,8 @@ export function createBrowse({ data, taxonomy, projects, drawRoot, libRoot, meRo
       b.addEventListener('click', () => { lib.mode = mode; renderLibrary(); });
       return b;
     };
-    libRoot.append(el('div', { className: 'segs' }, seg('all', 'All'), seg('fav', 'Favorites'), seg('done', 'Done')));
+    libRoot.append(el('div', { className: 'segs' }, seg('all', 'All'), seg('fav', 'Favorites'), seg('mine', 'Mine'), seg('done', 'Done')));
+    if (lib.mode === 'mine') return renderMine();
     if (lib.mode === 'done') {
       const box = el('div');
       libRoot.append(box);
@@ -167,6 +207,16 @@ export function createBrowse({ data, taxonomy, projects, drawRoot, libRoot, meRo
       });
       meRoot.append(row);
     }
+
+    const mineBox = el('input', { type: 'checkbox', checked: Boolean(data.profile().includeMine) });
+    const mineRow = el('label', { className: 'check' }, mineBox, el('span', { textContent: 'Include challenges I made in Draw' }));
+    mineBox.addEventListener('change', async () => {
+      mineBox.disabled = true;
+      try { await data.setIncludeMine(mineBox.checked); current = null; recent = []; }
+      catch (e) { mineBox.checked = !mineBox.checked; mineRow.after(errorNote(e)); }
+      finally { mineBox.disabled = false; }
+    });
+    meRoot.append(el('h3', { className: 'set-h set-gap', textContent: 'Draw' }), mineRow);
   }
 
   return {

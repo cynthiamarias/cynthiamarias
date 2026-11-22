@@ -6,12 +6,13 @@ import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateD
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import { pool as buildPool, queueOf, historyOf, findOpenFor, nextOrder, swapTarget } from './logic.js?v=0.9';
+import { pool as buildPool, queueOf, historyOf, findOpenFor, nextOrder, swapTarget, mineItem, docIdOfMine } from './logic.js?v=0.10';
 
 export function createData(db, uid, storage) {
   let challenges = [];
   let states = new Map();   // challengeId -> { favorite, timesDrawn, lastDrawnAt }
   let projects = new Map(); // projectId -> project (see newProject below)
+  let mine = [];            // challenges this person made with Create or Remix and kept (shaped like library ones)
   let profile = {};         // users/{uid}: { firingsAvailable, mixesOwnGlazes, ... }
 
   const stateRef = (id) => doc(db, 'users', uid, 'challengeState', id);
@@ -22,15 +23,21 @@ export function createData(db, uid, storage) {
   const logProject = (type, p, extra = {}) =>
     log(type, { id: p.challengeId, number: p.challengeNumber }, { projectId: p.id, ...extra }).catch(() => {}); // the log must never block a tap
   const allProjects = () => [...projects.values()];
+  const remixesCol = () => collection(db, 'users', uid, 'remixes');
 
   async function load() {
     // Members can only read approved challenges, so the query has to say so.
-    const [cs, ss, ps, pj] = await Promise.all([
+    const [cs, ss, ps, pj, ms, ds] = await Promise.all([
       getDocs(query(collection(db, 'challenges'), where('status', '==', 'approved'))),
       getDocs(collection(db, 'users', uid, 'challengeState')),
       getDoc(doc(db, 'users', uid)),
       getDocs(projectsCol()),
+      getDocs(query(remixesCol(), where('status', '==', 'saved'))),
+      getDocs(query(remixesCol(), where('status', '==', 'draft'))),
     ]);
+    // Previews that were never saved or discarded are tidied away on the next visit.
+    ds.docs.forEach((d) => deleteDoc(d.ref).catch(() => {}));
+    mine = ms.docs.map((d) => mineItem(d.id, d.data())).sort((a, b) => (b.savedAt?.toMillis?.() ?? 0) - (a.savedAt?.toMillis?.() ?? 0));
     challenges = cs.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9));
     states = new Map(ss.docs.map((d) => [d.id, d.data()]));
     profile = ps.exists() ? ps.data() : {};
@@ -55,9 +62,12 @@ export function createData(db, uid, storage) {
   return {
     load,
     all: () => challenges,
-    byId: (id) => challenges.find((c) => c.id === id) ?? null,
+    byId: (id) => challenges.find((c) => c.id === id) ?? mine.find((c) => c.id === id) ?? null,
     profile: () => profile,
-    visiblePool: (filters) => buildPool(challenges, profile, filters),
+    // Draw and the Library list draw from the shared library, plus your own if you have chosen to include them.
+    visiblePool: (filters) => buildPool(profile.includeMine ? [...challenges, ...mine] : challenges, profile, filters),
+    mine: () => mine,
+    visibleMine: (filters) => buildPool(mine, profile, filters),
     isFavorite: (id) => Boolean(states.get(id)?.favorite),
 
     async toggleFavorite(c) {
@@ -78,6 +88,25 @@ export function createData(db, uid, storage) {
     async setFirings(list) {
       await setDoc(doc(db, 'users', uid), { firingsAvailable: list }, { merge: true });
       profile = { ...profile, firingsAvailable: list };
+    },
+
+    // ---------- challenges made with Create and Remix ----------
+    // The Cloud Function writes a draft; these keep it (status saved), throw it away, or delete a kept one.
+    async keepDraft(draftId) {
+      await updateDoc(doc(db, 'users', uid, 'remixes', draftId), { status: 'saved', savedAt: serverTimestamp() });
+      const snap = await getDoc(doc(db, 'users', uid, 'remixes', draftId));
+      const item = mineItem(draftId, snap.data());
+      mine = [item, ...mine.filter((m) => m.docId !== draftId)];
+      return item;
+    },
+    discardDraft: (draftId) => deleteDoc(doc(db, 'users', uid, 'remixes', draftId)),
+    async deleteMine(item) {
+      await deleteDoc(doc(db, 'users', uid, 'remixes', docIdOfMine(item.id)));
+      mine = mine.filter((m) => m.id !== item.id);
+    },
+    async setIncludeMine(on) {
+      await setDoc(doc(db, 'users', uid), { includeMine: on }, { merge: true });
+      profile = { ...profile, includeMine: on };
     },
 
     // ---------- projects ----------

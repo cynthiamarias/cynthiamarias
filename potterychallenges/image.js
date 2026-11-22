@@ -1,7 +1,7 @@
 // Turns a photo from the camera or library into two small plain JPEGs (full and thumbnail).
 // Drawing onto a canvas and saving it again drops all hidden metadata, including GPS. Then
 // inspectJpeg() checks the result, and the photo is refused if anything sensitive is still in it.
-import { scaleToFit, inspectJpeg, stripJpegMetadata } from './logic.js?v=0.9';
+import { scaleToFit, inspectJpeg, stripJpegMetadata } from './logic.js?v=0.10';
 
 const FULL_MAX = 2048;
 const THUMB_MAX = 480;

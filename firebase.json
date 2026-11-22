@@ -8,8 +8,32 @@
     "rules": "firebase/storage.rules"
   },
   "emulators": {
-    "firestore": { "port": 8080 },
-    "storage": { "port": 9199 },
-    "ui": { "enabled": false }
-  }
+    "firestore": {
+      "port": 8080
+    },
+    "storage": {
+      "port": 9199
+    },
+    "ui": {
+      "enabled": false
+    }
+  },
+  "functions": [
+    {
+      "source": "firebase/functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "predeploy": [
+        "node \"$PROJECT_DIR/tools/sync-functions.mjs\""
+      ],
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "test",
+        "*.local"
+      ]
+    }
+  ]
 }

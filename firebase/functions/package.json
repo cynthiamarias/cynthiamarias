@@ -1,0 +1,18 @@
+{
+  "name": "potterychallenges-functions",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "description": "Cloud Functions: create and remix pottery challenges with Claude. The shared/ folder is copied in from the repo's shared/ by tools/sync-functions.mjs before every deploy and test.",
+  "scripts": {
+    "sync": "node ../../tools/sync-functions.mjs",
+    "test": "node ../../tools/sync-functions.mjs && node --test test/"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.12.0",
+    "ajv": "^8.17.1",
+    "firebase-admin": "^14.5.1",
+    "firebase-functions": "^7.4.0"
+  }
+}

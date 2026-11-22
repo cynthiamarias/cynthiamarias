@@ -193,6 +193,14 @@ textarea { resize: vertical; }
 .photo-status { margin: 4px 0 8px; min-height: 1.2em; }
 .photo-note { font-size: .8rem; margin: 8px 0 0; }
 
+/* ---------- create + remix ---------- */
+.act-wide { margin-top: 12px; }
+.act-wide.top { margin: 0 0 12px; }
+.act-wide .btn { width: 100%; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.pair select { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; min-height: 48px; width: 100%; }
+.set-gap { margin-top: 18px; }
+
 /* ---------- what's new banner ---------- */
 .banner {
   position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabbar) + 12px + env(safe-area-inset-bottom) + var(--kb)); z-index: 20;

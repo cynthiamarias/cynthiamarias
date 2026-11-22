@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isVisible, matches, pool, pick, pushRecent, dots, NO_FILTERS, STAGES, STAGE_LABEL, isOpen, toMs, queueOf, historyOf, nextOrder, findOpenFor, swapTarget, dateFromInput, inputFromDate, scaleToFit, inspectJpeg, stripJpegMetadata } from '../../potterychallenges/logic.js';
+import { isVisible, matches, pool, pick, pushRecent, dots, NO_FILTERS, STAGES, STAGE_LABEL, isOpen, toMs, queueOf, historyOf, nextOrder, findOpenFor, swapTarget, dateFromInput, inputFromDate, scaleToFit, inspectJpeg, stripJpegMetadata, mineItem, isMineId, docIdOfMine, MINE_PREFIX, isVisible as isVisible2 } from '../../potterychallenges/logic.js';
 
 const mk = (id, over = {}) => ({ id, category: 'functional-forms', difficulty: 3, timeBand: 'weekend', firing: 'electric-cone5', seasons: ['any'], ...over });
 
@@ -293,4 +293,28 @@ test('stripping refuses data that is not a sound JPEG instead of guessing', () =
 test('EXIF-looking text inside the image data is left alone (it is picture data, not a header)', () => {
   const bytes = new Uint8Array([0xff, 0xd8, ...JFIF, 0xff, 0xda, 0x00, 0x04, 0x00, 0x00, ...Buffer.from('Exif\0\0 GPS'), 0xff, 0xd9]);
   assert.deepEqual([...stripJpegMetadata(bytes)], [...bytes]);
+});
+
+// ---------- challenges you made yourself ----------
+test('a saved challenge of your own gets a safe id, and can be told apart from a library one', () => {
+  const m = mineItem('abc123', { status: 'saved', category: 'functional-forms', firing: 'electric-cone5', content: { title: 'T' }, number: 99 });
+  assert.equal(m.id, 'my-abc123');
+  assert.equal(m.docId, 'abc123');
+  assert.equal(m.isMine, true);
+  assert.equal(m.number, null, 'it never has a public number');
+  assert.equal(m.content.title, 'T');
+  assert.equal(isMineId('my-abc123'), true);
+  assert.equal(isMineId('abc123'), false);
+  assert.equal(isMineId(undefined), false);
+  assert.equal(isMineId(42), false);
+  assert.equal(docIdOfMine('my-abc123'), 'abc123');
+  assert.equal(docIdOfMine('abc123'), null);
+  assert.equal(MINE_PREFIX, 'my-');
+});
+
+test('your own challenges follow the same firing and glaze-chemistry hiding as library ones', () => {
+  assert.equal(isVisible2(mineItem('1', { category: 'alt-firing', firing: 'pit' })), false);
+  assert.equal(isVisible2(mineItem('1', { category: 'alt-firing', firing: 'raku' })), true);
+  assert.equal(isVisible2(mineItem('1', { category: 'glaze-chemistry', firing: 'electric-cone5' })), false);
+  assert.equal(isVisible2(mineItem('1', { category: 'glaze-chemistry', firing: 'electric-cone5' }), { mixesOwnGlazes: true }), true);
 });

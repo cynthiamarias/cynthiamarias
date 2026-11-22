@@ -4,3 +4,6 @@ node_modules/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# generated copy of ../shared for the function
+firebase/functions/shared/

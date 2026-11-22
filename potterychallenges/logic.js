@@ -148,3 +148,11 @@ export function stripJpegMetadata(bytes) {
   for (const c of keep) { out.set(c, at); at += c.length; }
   return out;
 }
+
+// ---------- challenges you made yourself (Create and Remix) ----------
+// A saved challenge of your own is shaped like a library challenge so every screen can treat the
+// two the same. The "my-" prefix keeps its id from ever clashing with a library id.
+export const MINE_PREFIX = 'my-';
+export const mineItem = (docId, data) => ({ ...data, id: `${MINE_PREFIX}${docId}`, docId, isMine: true, number: null });
+export const isMineId = (id) => typeof id === 'string' && id.startsWith(MINE_PREFIX);
+export const docIdOfMine = (id) => (isMineId(id) ? id.slice(MINE_PREFIX.length) : null);

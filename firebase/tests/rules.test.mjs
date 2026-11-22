@@ -490,3 +490,51 @@ test('photos: the full upload-and-delete path in Storage works for the owner and
   await assertFails(deleteObject(ref(as(ADMIN).storage(), path('full.jpg'))));
   for (const f of ['full.jpg', 'thumb.jpg']) await assertSucceeds(deleteObject(ref(as(ME).storage(), path(f))));
 });
+
+// ---------- drafts from Create and Remix ----------
+const seedDraft = (id = 'd1', over = {}) => env.withSecurityRulesDisabled((ctx) =>
+  setDoc(doc(ctx.firestore(), `users/uid-me/remixes/${id}`), { status: 'draft', source: 'created', content: { title: 'Made by function' }, category: 'functional-forms', ...over }));
+
+test('drafts: the owner can keep a draft by changing only its status', async () => {
+  await seedDraft();
+  await assertSucceeds(updateDoc(doc(db(ME), 'users/uid-me/remixes/d1'), { status: 'saved', savedAt: serverTimestamp() }));
+});
+
+test('drafts: the content and every other field are locked, even while changing the status', async () => {
+  await seedDraft();
+  const d = db(ME);
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/d1'), { status: 'saved', content: { title: 'I rewrote it' } }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/d1'), { status: 'saved', category: 'sculpture-figurative' }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/d1'), { status: 'saved', usage: { costUsd: 0 } }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/d1'), { content: { title: 'edit without status' } }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/d1'), { status: 'approved' }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/d1'), { status: 'draft' }));
+});
+
+test('drafts: once saved, it cannot be edited at all, and cannot go back to a draft', async () => {
+  await seedDraft('s1', { status: 'saved' });
+  const d = db(ME);
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/s1'), { status: 'draft' }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/s1'), { content: { title: 'x' } }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/s1'), { status: 'saved', savedAt: serverTimestamp() }));
+});
+
+test('drafts: the app can never create one, and can delete its own (discard)', async () => {
+  const d = db(ME);
+  await assertFails(setDoc(doc(d, 'users/uid-me/remixes/forged'), { status: 'saved', content: { title: 'Forged, no safety checks' } }));
+  await assertFails(setDoc(doc(d, 'users/uid-me/remixes/forged2'), { status: 'draft', content: { title: 'Forged' } }));
+  await seedDraft('d2');
+  await assertSucceeds(deleteDoc(doc(d, 'users/uid-me/remixes/d2')));
+});
+
+test('drafts: nobody else can read, keep, change or delete someone\'s drafts', async () => {
+  await seedDraft('d3');
+  for (const u of [OTHER, ADMIN, STRANGER]) {
+    const d = db(u);
+    await assertFails(getDoc(doc(d, 'users/uid-me/remixes/d3')));
+    await assertFails(getDocs(query(collection(d, 'users/uid-me/remixes'), where('status', '==', 'saved'))));
+    await assertFails(updateDoc(doc(d, 'users/uid-me/remixes/d3'), { status: 'saved' }));
+    await assertFails(deleteDoc(doc(d, 'users/uid-me/remixes/d3')));
+  }
+  await assertSucceeds(getDocs(query(collection(db(ME), 'users/uid-me/remixes'), where('status', '==', 'saved'))));
+});

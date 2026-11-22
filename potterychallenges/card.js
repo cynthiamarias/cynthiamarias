@@ -1,5 +1,5 @@
 // One challenge as a card. Everything from the data goes in with textContent, never as HTML.
-import { dots, OUTSIDE_FIRINGS } from './logic.js?v=0.9';
+import { dots, OUTSIDE_FIRINGS } from './logic.js?v=0.10';
 
 export const el = (tag, props = {}, ...kids) => {
   const n = Object.assign(document.createElement(tag), props);
@@ -18,6 +18,7 @@ export function renderCard(item, labels = {}) {
   const badges = [];
   if (item.firing && OUTSIDE_FIRINGS.includes(item.firing)) badges.push(`Outside firing: ${item.firing}`);
   if (item.cone10Optional) badges.push('Cone 10 optional');
+  if (item.isMine) badges.push('Made by you');
   if (item.number != null) card.append(el('p', { className: 'num', textContent: `#${item.number}` }));
   card.append(
     el('h2', { textContent: c.title }),

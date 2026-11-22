@@ -7,10 +7,12 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signO
 import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { getStorage } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import { mountReview } from './review.js?v=0.9';
-import { createData } from './data.js?v=0.9';
-import { createBrowse } from './browse.js?v=0.9';
-import { createProjects } from './projects.js?v=0.9';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-functions.js';
+import { mountReview } from './review.js?v=0.10';
+import { createData } from './data.js?v=0.10';
+import { createBrowse } from './browse.js?v=0.10';
+import { createProjects } from './projects.js?v=0.10';
+import { createCreator } from './create.js?v=0.10';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -24,9 +26,12 @@ const app = initializeApp({
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+const functions = getFunctions(app, 'us-central1');
+// Calls to the server-side Create and Remix. The Claude key never reaches this page.
+const callServer = (name) => async (input) => (await httpsCallable(functions, name, { timeout: 120000 })(input)).data;
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.9', date: 'Nov 22', whatsNew: "Photos: hidden data is now removed from the file instead of refusing the upload." };
+const VERSION = { number: '0.10', date: 'Nov 22', whatsNew: "Create a challenge from a short prompt, or remix any challenge. Kept ones live under Library, then Mine." };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
@@ -250,7 +255,9 @@ async function applyAuth(user) {
     await data.load();
     const taxonomy = await taxonomyPromise;
     projects = createProjects({ data, taxonomy });
-    browse = createBrowse({ data, taxonomy, projects, drawRoot: $('drawRoot'), libRoot: $('libRoot'), meRoot: $('meSettings') });
+    const labels = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
+    const creator = createCreator({ data, ui: projects.ui, call: { create: callServer('createChallenge'), remix: callServer('remixChallenge') }, labels, refresh: () => showTab() });
+    browse = createBrowse({ data, taxonomy, projects, creator, drawRoot: $('drawRoot'), libRoot: $('libRoot'), meRoot: $('meSettings') });
   } catch (e) {
     snaplog(`library load failed: ${e.code || e.message}`);
     const msg = `Couldn't load the library (${e.code || e.message}). Pull to refresh to try again.`;

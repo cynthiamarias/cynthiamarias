@@ -1,10 +1,10 @@
 // Projects: marking a challenge done, the up-next queue, stages, and per-project details.
 // One project is one attempt at one challenge. Everything from the data goes in with
 // textContent, never as HTML.
-import { el, renderCard } from './card.js?v=0.9';
-import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.9';
+import { el, renderCard } from './card.js?v=0.10';
+import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.10';
 import { Timestamp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { prepareImage } from './image.js?v=0.9';
+import { prepareImage } from './image.js?v=0.10';
 
 export function createProjects({ data, taxonomy }) {
   const catLabel = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
@@ -277,6 +277,7 @@ export function createProjects({ data, taxonomy }) {
   }
 
   return {
+    ui: { openSheet, closeSheet, cancelBtn, toast, fail },
     challengeButtons,
     upNextTab(root) { detailId = null; renderUpNext(root); },
     renderDone(root) { doneDetailId = null; renderDone(root); },

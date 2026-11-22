@@ -82,10 +82,16 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Saved remixes are written by the Cloud Function only.
+      // Challenges made with Create or Remix. Only the Cloud Function writes them (as drafts).
+      // The person can keep a draft by changing its status to 'saved' and nothing else, so the
+      // content the function produced, and checked, can never be edited from the app.
       match /remixes/{id} {
         allow read, delete: if isMe(uid);
-        allow create, update: if false;
+        allow create: if false;
+        allow update: if isMe(uid)
+          && resource.data.status == 'draft'
+          && request.resource.data.status == 'saved'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'savedAt']);
       }
     }
 
