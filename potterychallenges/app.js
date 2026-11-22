@@ -7,6 +7,8 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signO
 import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { mountReview } from './review.js';
+import { createData } from './data.js';
+import { createBrowse } from './browse.js';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -21,7 +23,10 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.2', date: 'Nov 22', whatsNew: 'Admin review screen for approving challenges.' };
+const VERSION = { number: '0.3', date: 'Nov 22', whatsNew: 'Draw a challenge, browse the Library, and favorite what you like.' };
+
+// Category labels come from the same taxonomy file the validator uses (published at /shared/).
+const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
 
 const $ = (id) => document.getElementById(id);
 const views = ['loading', 'signedOut', 'denied', 'app'];
@@ -104,6 +109,11 @@ function showTab() {
   store('potterychallenges.tab', tab);
   // The review queue is fetched fresh each time the tab opens, and only for admins.
   if (tab === 'review' && me && me.role === 'admin') mountReview($('reviewRoot'), { db, email: me.email });
+  if (browse) {
+    if (tab === 'draw') browse.drawTab();
+    else if (tab === 'library') browse.libraryTab();
+    else if (tab === 'me') browse.meTab();
+  }
   for (const el of document.querySelectorAll('.tab')) el.hidden = el.dataset.tab !== tab;
   for (const b of document.querySelectorAll('.tabs button')) {
     if (b.dataset.go === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
@@ -153,6 +163,7 @@ function doSignOut() { signingOut = true; signOut(auth); }
 $('signOut').addEventListener('click', doSignOut);
 $('deniedSignOut').addEventListener('click', doSignOut);
 
+let browse = null;     // Draw / Library / settings screens, built after sign-in
 let me = null;         // { uid, email, name, role } once allowed in
 let sessionUid = null; // who we last handled, allowed or not
 
@@ -179,6 +190,7 @@ async function applyAuth(user) {
   sessionUid = user ? user.uid : null;
   if (!user) {
     me = null;
+    browse = null;
     return show('signedOut');
   }
   const email = (user.email || '').toLowerCase();
@@ -201,6 +213,18 @@ async function applyAuth(user) {
   $('meEmail').textContent = me.email;
   $('meRole').textContent = me.role === 'admin' ? 'Admin' : 'Member';
   $('reviewNav').hidden = me.role !== 'admin';
+
+  // Load the approved library and this person's own state, then build the screens.
+  browse = null;
+  try {
+    const data = createData(db, user.uid);
+    await data.load();
+    browse = createBrowse({ data, taxonomy: await taxonomyPromise, drawRoot: $('drawRoot'), libRoot: $('libRoot'), meRoot: $('meSettings') });
+  } catch (e) {
+    snaplog(`library load failed: ${e.code || e.message}`);
+    const msg = `Couldn't load the library (${e.code || e.message}). Pull to refresh to try again.`;
+    for (const id of ['drawRoot', 'libRoot']) $(id).textContent = msg;
+  }
   show('app');
   showTab();
 }

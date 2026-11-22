@@ -50,10 +50,7 @@
   <main id="main">
     <section id="tab-draw" class="tab" data-tab="draw" hidden>
       <h2>Draw</h2>
-      <div class="card empty">
-        <p><b>No challenges yet.</b></p>
-        <p class="muted">Your library is empty. The first batch arrives in a later build step, and then this is where one challenge appears at a time.</p>
-      </div>
+      <div id="drawRoot"></div>
     </section>
 
     <section id="tab-next" class="tab" data-tab="next" hidden>
@@ -66,10 +63,7 @@
 
     <section id="tab-library" class="tab" data-tab="library" hidden>
       <h2>Library</h2>
-      <div class="card empty">
-        <p><b>The library is empty.</b></p>
-        <p class="muted">Favorites, categories, your remixes and finished work will be listed here.</p>
-      </div>
+      <div id="libRoot"></div>
     </section>
 
     <section id="tab-review" class="tab" data-tab="review" hidden>
@@ -86,6 +80,7 @@
         </dl>
         <button id="signOut" class="btn" type="button">Sign out</button>
       </div>
+      <div class="card" id="meSettings"></div>
       <p id="siteFoot" class="muted foot"></p>
     </section>
   </main>

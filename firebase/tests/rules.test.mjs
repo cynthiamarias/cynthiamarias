@@ -10,7 +10,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, runTransaction,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, runTransaction, addDoc, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
 
@@ -308,4 +308,29 @@ test('review: a member cannot approve or reject', async () => {
 test('review: an admin can list pending challenges; a member cannot', async () => {
   await assertSucceeds(getDocs(query(collection(db(ADMIN), 'challenges'), where('status', '==', 'pending'))));
   await assertFails(getDocs(query(collection(db(ME), 'challenges'), where('status', '==', 'pending'))));
+});
+
+// ---------- the exact operations potterychallenges/data.js performs ----------
+test('data layer: a member can load the library and their own state', async () => {
+  const d = db(ME);
+  await assertSucceeds(getDocs(query(collection(d, 'challenges'), where('status', '==', 'approved'))));
+  await assertSucceeds(getDocs(collection(d, 'users/uid-me/challengeState')));
+  await assertSucceeds(getDoc(doc(d, 'users/uid-me'))); // may not exist yet: still allowed
+});
+
+test('data layer: favorite, draw count, activity log and firing settings all save', async () => {
+  const d = db(ME);
+  await assertSucceeds(setDoc(doc(d, 'users/uid-me/challengeState/c1'), { favorite: true, favoritedAt: serverTimestamp() }, { merge: true }));
+  await assertSucceeds(setDoc(doc(d, 'users/uid-me/challengeState/c1'), { favorite: false, favoritedAt: null }, { merge: true }));
+  await assertSucceeds(setDoc(doc(d, 'users/uid-me/challengeState/c1'), { timesDrawn: increment(1), lastDrawnAt: serverTimestamp() }, { merge: true }));
+  await assertSucceeds(addDoc(collection(d, 'users/uid-me/events'), { type: 'drawn', at: serverTimestamp(), challengeId: 'c1', number: 1 }));
+  await assertSucceeds(setDoc(doc(d, 'users/uid-me'), { firingsAvailable: ['raku', 'pit'] }, { merge: true }));
+});
+
+test('data layer: nobody can write favorites, events or settings into someone else\'s space', async () => {
+  const d = db(OTHER);
+  await assertFails(setDoc(doc(d, 'users/uid-me/challengeState/c1'), { favorite: true }, { merge: true }));
+  await assertFails(addDoc(collection(d, 'users/uid-me/events'), { type: 'drawn' }));
+  await assertFails(setDoc(doc(d, 'users/uid-me'), { firingsAvailable: [] }, { merge: true }));
+  await assertFails(getDocs(collection(d, 'users/uid-me/challengeState')));
 });
