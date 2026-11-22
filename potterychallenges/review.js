@@ -44,6 +44,23 @@ export function mountReview(root, { db, email }) {
     const item = queue[0];
     const c = item.content;
     const total = queue.length;
+
+    // One tap to publish everything waiting. The first tap arms it, the second confirms.
+    if (total > 1) {
+      const all = el('button', { type: 'button', className: 'btn primary', textContent: `Approve all ${total}` });
+      let armed = null;
+      all.addEventListener('click', () => {
+        if (!armed) {
+          all.textContent = `Tap again to approve all ${total}`;
+          armed = setTimeout(() => { armed = null; all.textContent = `Approve all ${total}`; }, 5000);
+          return;
+        }
+        clearTimeout(armed);
+        approveAll();
+      });
+      root.append(el('div', { className: 'rv-all' }, all,
+        el('p', { className: 'muted', textContent: 'Publishes every challenge below with its permanent number. Or review them one at a time.' })));
+    }
     root.append(el('p', { className: 'muted rv-count', textContent: `${total} waiting${skipped ? ` · ${skipped} skipped this round` : ''} · ${item.batchId || 'unbatched'}` }));
 
     const card = el('article', { className: 'card rv-card' });
@@ -77,6 +94,42 @@ export function mountReview(root, { db, email }) {
     approve.addEventListener('click', () => act(item, 'approve'));
     skip.addEventListener('click', () => { queue.push(queue.shift()); skipped++; draw(); scrollTo(0, 0); });
     root.append(el('div', { className: 'rv-actions' }, reject, approve), el('div', { className: 'rv-skip' }, skip));
+  }
+
+  // Approve everything waiting, in batch order, numbering them one after another.
+  // Done in chunks of 100 so a big batch stays well inside Firestore's transaction limits.
+  async function approveAll() {
+    if (busy) return;
+    busy = true;
+    for (const b of root.querySelectorAll('button')) b.disabled = true;
+    const ids = queue.map((q) => q.id);
+    const counterRef = doc(db, 'meta', 'counters');
+    let first = null, last = null, count = 0;
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
+        const done = await runTransaction(db, async (tx) => {
+          const counter = await tx.get(counterRef);
+          const snaps = await Promise.all(chunk.map((id) => tx.get(doc(db, 'challenges', id))));
+          let n = counter.exists() ? counter.data().nextChallengeNumber : 1;
+          const start = n;
+          for (const s of snaps) {
+            if (s.exists() && s.data().status === 'pending') {
+              tx.update(s.ref, { status: 'approved', number: n++, approvedAt: serverTimestamp(), reviewedBy: email });
+            }
+          }
+          tx.set(counterRef, { nextChallengeNumber: n });
+          return { start, end: n - 1 };
+        });
+        if (done.end >= done.start) { first ??= done.start; last = done.end; count += done.end - done.start + 1; }
+      }
+      queue = [];
+      draw(count ? `Approved ${count} challenges, numbered #${first} to #${last}. They are now in Draw and the Library.` : 'Nothing was left to approve.');
+    } catch (e) {
+      draw(`That didn't finish (${e.code || e.message}). Some may have been approved; reload this tab to see what is left.`);
+    } finally {
+      busy = false;
+    }
   }
 
   async function act(item, kind) {

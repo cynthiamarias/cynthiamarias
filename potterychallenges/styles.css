@@ -92,6 +92,9 @@ main { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px 16px calc(va
 /* ---------- admin review ---------- */
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); text-decoration: underline; }
+.rv-all { margin-bottom: 16px; }
+.rv-all .btn { min-height: 60px; font-size: 1.05rem; }
+.rv-all p { margin: 8px 0 0; font-size: .9rem; text-align: center; }
 .rv-count { margin: 0 0 8px; font-size: .9rem; }
 .rv-note { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 500; }
 .rv-card h2 { margin-bottom: 6px; }

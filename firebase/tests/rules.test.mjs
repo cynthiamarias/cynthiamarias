@@ -334,3 +334,49 @@ test('data layer: nobody can write favorites, events or settings into someone el
   await assertFails(setDoc(doc(d, 'users/uid-me'), { firingsAvailable: [] }, { merge: true }));
   await assertFails(getDocs(collection(d, 'users/uid-me/challengeState')));
 });
+
+// ---------- "Approve all" (same logic as approveAll in potterychallenges/review.js) ----------
+const approveAll = (d, ids) => runTransaction(d, async (tx) => {
+  const counterRef = doc(d, 'meta', 'counters');
+  const counter = await tx.get(counterRef);
+  const snaps = await Promise.all(ids.map((id) => tx.get(doc(d, 'challenges', id))));
+  let n = counter.exists() ? counter.data().nextChallengeNumber : 1;
+  const start = n;
+  for (const s of snaps) {
+    if (s.exists() && s.data().status === 'pending') tx.update(s.ref, { status: 'approved', number: n++ });
+  }
+  tx.set(counterRef, { nextChallengeNumber: n });
+  return { start, end: n - 1 };
+});
+
+test('approve all: numbers a whole batch in order, skips already-approved ones, and members can then read them', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    // Seed data: c1 is approved as #1 and the counter says the next number is 3, so c2 and the
+    // four new ones should become 3 to 7.
+    for (const id of ['p1', 'p2', 'p3', 'p4']) await setDoc(doc(d, `challenges/${id}`), { status: 'pending', content: {} });
+  });
+  // c1 is already approved in the seed data and c2 is pending, so five are pending and one is approved.
+  const r = await assertSucceeds(approveAll(db(ADMIN), ['c1', 'c2', 'p1', 'p2', 'p3', 'p4']));
+  assert.deepEqual(r, { start: 3, end: 7 });
+  const numbers = {};
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    for (const id of ['c1', 'c2', 'p1', 'p2', 'p3', 'p4']) numbers[id] = (await getDoc(doc(ctx.firestore(), `challenges/${id}`))).data().number;
+  });
+  assert.equal(numbers.c1, 1, 'already-approved c1 keeps its number');
+  assert.deepEqual([numbers.c2, numbers.p1, numbers.p2, numbers.p3, numbers.p4], [3, 4, 5, 6, 7]);
+  const all = Object.values(numbers);
+  assert.equal(new Set(all).size, all.length, 'no two challenges share a number');
+  const seen = await assertSucceeds(getDocs(query(collection(db(ME), 'challenges'), where('status', '==', 'approved'))));
+  assert.equal(seen.size, 6);
+});
+
+test('approve all: running it again with nothing pending changes no numbers', async () => {
+  await assertSucceeds(approveAll(db(ADMIN), ['c2']));
+  const again = await assertSucceeds(approveAll(db(ADMIN), ['c2']));
+  assert.ok(again.end < again.start, 'nothing should be numbered the second time');
+});
+
+test('approve all: a member cannot do it', async () => {
+  await assertFails(approveAll(db(ME), ['c2']));
+});
