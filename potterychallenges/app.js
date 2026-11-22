@@ -6,6 +6,7 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signO
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { mountReview } from './review.js';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -20,7 +21,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.1', date: 'Nov 22', whatsNew: 'Sign-in and the app frame.' };
+const VERSION = { number: '0.2', date: 'Nov 22', whatsNew: 'Admin review screen for approving challenges.' };
 
 const $ = (id) => document.getElementById(id);
 const views = ['loading', 'signedOut', 'denied', 'app'];
@@ -90,15 +91,19 @@ $('siteFoot').textContent = `Pottery Challenges · v${VERSION.number} · updated
 
 // ---------- tabs ----------
 const TABS = ['draw', 'next', 'library', 'me'];
+const allowedTabs = () => (me && me.role === 'admin' ? [...TABS, 'review'] : TABS);
 function currentTab() {
+  const tabs = allowedTabs();
   const fromHash = location.hash.replace(/^#\/?/, '');
-  if (TABS.includes(fromHash)) return fromHash;
+  if (tabs.includes(fromHash)) return fromHash;
   const saved = store('potterychallenges.tab');
-  return TABS.includes(saved) ? saved : 'draw';
+  return tabs.includes(saved) ? saved : 'draw';
 }
 function showTab() {
   const tab = currentTab();
   store('potterychallenges.tab', tab);
+  // The review queue is fetched fresh each time the tab opens, and only for admins.
+  if (tab === 'review' && me && me.role === 'admin') mountReview($('reviewRoot'), { db, email: me.email });
   for (const el of document.querySelectorAll('.tab')) el.hidden = el.dataset.tab !== tab;
   for (const b of document.querySelectorAll('.tabs button')) {
     if (b.dataset.go === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
@@ -195,6 +200,7 @@ async function applyAuth(user) {
   $('whoName').textContent = me.name;
   $('meEmail').textContent = me.email;
   $('meRole').textContent = me.role === 'admin' ? 'Admin' : 'Member';
+  $('reviewNav').hidden = me.role !== 'admin';
   show('app');
   showTab();
 }

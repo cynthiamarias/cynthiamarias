@@ -2,6 +2,7 @@
 // Run: firebase emulators:exec --only firestore,storage --project demo-potterychallenges \
 //        "node --test firebase/tests/rules.test.mjs"
 import { test, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   initializeTestEnvironment,
@@ -9,7 +10,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, runTransaction,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
 
@@ -259,4 +260,52 @@ test('storage: public/ is readable by anyone and writable by no one', async () =
   await assertSucceeds(getBytes(ref(env.unauthenticatedContext().storage(), 'public/photos/ph1/full.jpg')));
   await assertFails(put(ADMIN, 'public/photos/ph2/full.jpg', jpeg()));
   await assertFails(put(ME, 'elsewhere/file.jpg', jpeg()));
+});
+
+// ---------- the review screen's approve transaction (same logic as potterychallenges/review.js) ----------
+const approve = (d, id) => runTransaction(d, async (tx) => {
+  const ref = doc(d, 'challenges', id);
+  const cur = await tx.get(ref);
+  if (!cur.exists() || cur.data().status !== 'pending') throw new Error('not pending');
+  const counterRef = doc(d, 'meta', 'counters');
+  const counter = await tx.get(counterRef);
+  const n = counter.exists() ? counter.data().nextChallengeNumber : 1;
+  tx.set(counterRef, { nextChallengeNumber: n + 1 });
+  tx.update(ref, { status: 'approved', number: n });
+  return n;
+});
+
+test('review: an admin approving challenges gets sequential numbers from the counter', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'challenges/c3'), { status: 'pending', content: {} }));
+  const d = db(ADMIN);
+  const a = await assertSucceeds(approve(d, 'c2'));
+  const b = await assertSucceeds(approve(d, 'c3'));
+  if (a !== 3 || b !== 4) throw new Error(`expected 3 then 4, got ${a} then ${b}`);
+  let next;
+  await env.withSecurityRulesDisabled(async (ctx) => { next = (await getDoc(doc(ctx.firestore(), 'meta/counters'))).data().nextChallengeNumber; });
+  if (next !== 5) throw new Error(`counter should be 5, got ${next}`);
+});
+
+test('review: the first approval starts numbering at 1 when no counter exists yet', async () => {
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'meta/counters')));
+  const n = await assertSucceeds(approve(db(ADMIN), 'c2'));
+  if (n !== 1) throw new Error(`expected 1, got ${n}`);
+});
+
+test('review: an already-approved challenge cannot be approved again', async () => {
+  // c1 is approved in the seed data: the transaction itself must refuse, before changing anything.
+  await assert.rejects(approve(db(ADMIN), 'c1'), /not pending/);
+  let next;
+  await env.withSecurityRulesDisabled(async (ctx) => { next = (await getDoc(doc(ctx.firestore(), 'meta/counters'))).data().nextChallengeNumber; });
+  if (next !== 3) throw new Error(`counter must not move, got ${next}`);
+});
+
+test('review: a member cannot approve or reject', async () => {
+  await assertFails(approve(db(ME), 'c2'));
+  await assertFails(updateDoc(doc(db(ME), 'challenges/c2'), { status: 'rejected' }));
+});
+
+test('review: an admin can list pending challenges; a member cannot', async () => {
+  await assertSucceeds(getDocs(query(collection(db(ADMIN), 'challenges'), where('status', '==', 'pending'))));
+  await assertFails(getDocs(query(collection(db(ME), 'challenges'), where('status', '==', 'pending'))));
 });

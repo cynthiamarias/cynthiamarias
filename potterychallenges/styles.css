@@ -66,7 +66,7 @@ main { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px 16px calc(va
 
 /* bottom tab bar (portrait phones) */
 .tabs {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: grid; grid-template-columns: repeat(4, 1fr);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
   background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
 }
 .tabs button {
@@ -80,7 +80,7 @@ main { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px 16px calc(va
 /* side rail: desktop, and phones turned sideways (a bottom bar would eat the short screen) */
 @media (min-width: 820px), (orientation: landscape) and (max-height: 600px) {
   .tabs {
-    top: 0; right: auto; width: var(--rail); grid-template-columns: 1fr; align-content: start;
+    top: 0; right: auto; width: var(--rail); grid-auto-flow: row; grid-auto-columns: auto; align-content: start;
     border-top: 0; border-right: 1px solid var(--line); padding: env(safe-area-inset-top) 0 0 env(safe-area-inset-left);
   }
   .tabs button { min-height: 76px; }
@@ -88,6 +88,23 @@ main { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px 16px calc(va
   .topbar { padding-left: 16px; }
   main { max-width: 900px; padding-bottom: 32px; padding-left: calc(16px + env(safe-area-inset-left)); }
 }
+
+/* ---------- admin review ---------- */
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); text-decoration: underline; }
+.rv-count { margin: 0 0 8px; font-size: .9rem; }
+.rv-note { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 500; }
+.rv-card h2 { margin-bottom: 6px; }
+.rv-meta { color: var(--muted); font-size: .85rem; margin: 0 0 10px; }
+.rv-summary { font-style: italic; }
+.rv-sec h3, .rv-safety h3 { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 16px 0 4px; }
+.rv-card ul { margin: 0 0 8px; padding-left: 20px; }
+.rv-card li { margin: 2px 0; }
+.rv-safety { background: color-mix(in srgb, var(--accent) 10%, var(--card)); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px 8px; margin-top: 14px; }
+.rv-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.rv-actions .btn { min-height: 60px; font-size: 1.05rem; }
+.rv-skip { text-align: center; margin-top: 6px; }
+.btn:disabled { opacity: .5; cursor: default; }
 
 /* ---------- what's new banner ---------- */
 .banner {
