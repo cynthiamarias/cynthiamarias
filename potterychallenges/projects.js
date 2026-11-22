@@ -1,10 +1,10 @@
 // Projects: marking a challenge done, the up-next queue, stages, and per-project details.
 // One project is one attempt at one challenge. Everything from the data goes in with
 // textContent, never as HTML.
-import { el, renderCard } from './card.js?v=0.8';
-import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.8';
+import { el, renderCard } from './card.js?v=0.9';
+import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.9';
 import { Timestamp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { prepareImage } from './image.js?v=0.8';
+import { prepareImage } from './image.js?v=0.9';
 
 export function createProjects({ data, taxonomy }) {
   const catLabel = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
@@ -26,6 +26,7 @@ export function createProjects({ data, taxonomy }) {
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3500);
   }
   const fail = (e) => toast(`That didn't save (${e.code || e.message}).`);
+  const dbg = (m) => window.dispatchEvent(new CustomEvent('pc-log', { detail: m })); // shows in the #debug log
 
   // ---------- mark done ----------
   function doneSheet(c, after) {
@@ -162,18 +163,31 @@ export function createProjects({ data, taxonomy }) {
       input.value = '';
       if (!files.length) return;
       add.disabled = true;
-      let done = 0, failed = 0;
+      status.textContent = '';
+      let done = 0, failed = 0, lastError = '';
       for (const f of files) {
         status.textContent = `Preparing photo ${done + failed + 1} of ${files.length}…`;
         try {
-          const prepared = await prepareImage(f);
+          const prepared = await prepareImage(f, dbg);
           status.textContent = `Uploading photo ${done + failed + 1} of ${files.length}…`;
           await data.addPhoto(data.projectById(p.id) ?? p, prepared);
           done++;
-        } catch (e) { failed++; status.textContent = e.message || String(e.code); await new Promise((r) => setTimeout(r, 2500)); }
+        } catch (e) {
+          failed++;
+          lastError = e.code ? `${e.code}: ${e.message}` : (e.message || String(e));
+          dbg(`photo failed (${f.type || 'unknown type'}, ${Math.round(f.size / 1024)} KB): ${lastError}`);
+        }
       }
       add.disabled = false;
-      toast(`${done ? `${done} photo${done === 1 ? '' : 's'} added` : 'No photos added'}${failed ? `, ${failed} failed` : ''}.`);
+      if (failed) {
+        // Leave the error on screen so it can be read (and screenshotted) instead of flashing by.
+        status.setAttribute('role', 'alert');
+        status.textContent = `${done ? `${done} added, ` : ''}${failed} failed. ${lastError}`;
+        toast(`${failed} photo${failed === 1 ? '' : 's'} failed. See the message under Photos.`);
+        if (done) again();
+        return;
+      }
+      toast(`${done} photo${done === 1 ? '' : 's'} added.`);
       again();
     });
 

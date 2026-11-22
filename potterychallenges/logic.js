@@ -122,3 +122,29 @@ export function inspectJpeg(bytes) {
   }
   return out;
 }
+
+// Cuts the EXIF/XMP (APP1) and Photoshop (APP13) blocks out of a JPEG without touching the
+// picture itself: every other header and all of the image data are copied across byte for byte.
+// Some browsers write a small EXIF block of their own when saving a canvas, so the app strips
+// first and then runs inspectJpeg() as proof. Returns null if the data is not a sound JPEG.
+export function stripJpegMetadata(bytes) {
+  if (!bytes || bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+  const keep = [bytes.subarray(0, 2)];
+  let i = 2;
+  while (i + 4 <= bytes.length) {
+    if (bytes[i] !== 0xff) return null;                                          // not where a header should start
+    const marker = bytes[i + 1];
+    if (marker === 0xff) { i += 1; continue; }                                   // fill byte
+    if (marker === 0xda || marker === 0xd9) break;                               // image data (or the end) starts here
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) { keep.push(bytes.subarray(i, i + 2)); i += 2; continue; }
+    const len = (bytes[i + 2] << 8) | bytes[i + 3];
+    if (len < 2 || i + 2 + len > bytes.length) return null;                      // damaged header
+    if (marker !== 0xe1 && marker !== 0xed) keep.push(bytes.subarray(i, i + 2 + len));
+    i += 2 + len;
+  }
+  keep.push(bytes.subarray(i));                                                  // image data to the end, untouched
+  const out = new Uint8Array(keep.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const c of keep) { out.set(c, at); at += c.length; }
+  return out;
+}

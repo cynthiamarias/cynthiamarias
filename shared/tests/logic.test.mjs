@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isVisible, matches, pool, pick, pushRecent, dots, NO_FILTERS, STAGES, STAGE_LABEL, isOpen, toMs, queueOf, historyOf, nextOrder, findOpenFor, swapTarget, dateFromInput, inputFromDate, scaleToFit, inspectJpeg } from '../../potterychallenges/logic.js';
+import { isVisible, matches, pool, pick, pushRecent, dots, NO_FILTERS, STAGES, STAGE_LABEL, isOpen, toMs, queueOf, historyOf, nextOrder, findOpenFor, swapTarget, dateFromInput, inputFromDate, scaleToFit, inspectJpeg, stripJpegMetadata } from '../../potterychallenges/logic.js';
 
 const mk = (id, over = {}) => ({ id, category: 'functional-forms', difficulty: 3, timeBand: 'weekend', firing: 'electric-cone5', seasons: ['any'], ...over });
 
@@ -233,4 +233,64 @@ test('non-JPEG data, empty data and truncated data never crash', () => {
   const cut = jpeg(JFIF, seg(0xe1, 'Exif\0\0xxxxxxxxxxxxxxxx')).slice(0, 30);
   assert.doesNotThrow(() => inspectJpeg(cut));
   assert.deepEqual(inspectJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x00, 0x45])).sensitive, []); // bogus zero length
+});
+
+// ---------- stripping metadata ----------
+const tail = (b) => b.slice(b.length - 14);
+
+test('stripping removes EXIF, XMP and Photoshop blocks and the result passes the checker', () => {
+  const dirty = jpeg(JFIF, seg(0xe1, 'Exif\0\0MM GPSLatitude 37.77 GPSLongitude -122.41', 20), seg(0xe1, 'http://ns.adobe.com/xap/1.0/\0<x/>'), seg(0xed, 'Photoshop 3.0\0', 10));
+  assert.deepEqual(inspectJpeg(dirty).sensitive, ['EXIF', 'XMP', 'PHOTOSHOP']);
+  const clean = stripJpegMetadata(dirty);
+  assert.ok(clean);
+  assert.equal(inspectJpeg(clean).isJpeg, true);
+  assert.deepEqual(inspectJpeg(clean).sensitive, []);
+  assert.ok(clean.length < dirty.length);
+});
+
+test('the location text is really gone from the bytes, not just hidden from the checker', () => {
+  const dirty = jpeg(JFIF, seg(0xe1, 'Exif\0\0GPSLatitude 37.77 GPSLongitude -122.41', 20));
+  const text = Buffer.from(stripJpegMetadata(dirty)).toString('latin1');
+  assert.equal(text.includes('GPS'), false);
+  assert.equal(text.includes('Exif'), false);
+  assert.equal(text.includes('37.77'), false);
+});
+
+test('stripping keeps the other headers and the image data exactly as they were', () => {
+  const icc = seg(0xe2, 'ICC_PROFILE\0', 20);
+  const dirty = jpeg(JFIF, seg(0xe1, 'Exif\0\0abc'), icc, seg(0xfe, 'hello'));
+  const clean = stripJpegMetadata(dirty);
+  const text = Buffer.from(clean).toString('latin1');
+  assert.ok(text.includes('JFIF'));
+  assert.ok(text.includes('ICC_PROFILE'));
+  assert.ok(text.includes('hello'));
+  assert.deepEqual([...tail(clean)], [...tail(dirty)], 'the image data and end marker must be identical');
+});
+
+test('stripping an already clean JPEG changes nothing, and stripping twice is the same as once', () => {
+  const clean = jpeg(JFIF, seg(0xfe, 'ok'));
+  assert.deepEqual([...stripJpegMetadata(clean)], [...clean]);
+  const dirty = jpeg(JFIF, seg(0xe1, 'Exif\0\0abc'));
+  const once = stripJpegMetadata(dirty);
+  assert.deepEqual([...stripJpegMetadata(once)], [...once]);
+});
+
+test('stripping works when the EXIF block comes first, last, or alone', () => {
+  for (const segs of [[seg(0xe1, 'Exif\0\0a')], [seg(0xe1, 'Exif\0\0a'), JFIF], [JFIF, seg(0xe1, 'Exif\0\0a')]]) {
+    assert.deepEqual(inspectJpeg(stripJpegMetadata(jpeg(...segs))).sensitive, []);
+  }
+});
+
+test('stripping refuses data that is not a sound JPEG instead of guessing', () => {
+  assert.equal(stripJpegMetadata(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4])), null);
+  assert.equal(stripJpegMetadata(new Uint8Array([])), null);
+  assert.equal(stripJpegMetadata(null), null);
+  assert.equal(stripJpegMetadata(jpeg(seg(0xe1, 'Exif\0\0abcdefgh')).slice(0, 12)), null);          // cut off mid-header
+  assert.equal(stripJpegMetadata(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x00, 0x45, 0x00])), null); // zero length
+  assert.equal(stripJpegMetadata(new Uint8Array([0xff, 0xd8, 0x12, 0x34, 0x56, 0x78])), null);              // junk after the start
+});
+
+test('EXIF-looking text inside the image data is left alone (it is picture data, not a header)', () => {
+  const bytes = new Uint8Array([0xff, 0xd8, ...JFIF, 0xff, 0xda, 0x00, 0x04, 0x00, 0x00, ...Buffer.from('Exif\0\0 GPS'), 0xff, 0xd9]);
+  assert.deepEqual([...stripJpegMetadata(bytes)], [...bytes]);
 });

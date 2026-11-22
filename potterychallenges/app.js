@@ -7,10 +7,10 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signO
 import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { getStorage } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import { mountReview } from './review.js?v=0.8';
-import { createData } from './data.js?v=0.8';
-import { createBrowse } from './browse.js?v=0.8';
-import { createProjects } from './projects.js?v=0.8';
+import { mountReview } from './review.js?v=0.9';
+import { createData } from './data.js?v=0.9';
+import { createBrowse } from './browse.js?v=0.9';
+import { createProjects } from './projects.js?v=0.9';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -26,7 +26,7 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.8', date: 'Nov 21', whatsNew: "Add photos to your projects. Location data is removed first." };
+const VERSION = { number: '0.9', date: 'Nov 22', whatsNew: "Photos: hidden data is now removed from the file instead of refusing the upload." };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
@@ -70,6 +70,7 @@ addEventListener('error', (e) => snaplog('error: ' + e.message));
 addEventListener('unhandledrejection', (e) => snaplog('rejection: ' + (e.reason && (e.reason.code || e.reason.message))));
 addEventListener('hashchange', () => { if (location.hash === '#debug') showSnaplog(); else document.getElementById('snaplog')?.remove(); });
 snaplog('page load');
+addEventListener('pc-log', (e) => snaplog(String(e.detail)));
 
 // iPhones don't shrink the page when the keyboard opens; track its height so popups can lift.
 if (window.visualViewport) {

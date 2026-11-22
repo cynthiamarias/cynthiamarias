@@ -1,5 +1,5 @@
 // One challenge as a card. Everything from the data goes in with textContent, never as HTML.
-import { dots, OUTSIDE_FIRINGS } from './logic.js?v=0.8';
+import { dots, OUTSIDE_FIRINGS } from './logic.js?v=0.9';
 
 export const el = (tag, props = {}, ...kids) => {
   const n = Object.assign(document.createElement(tag), props);
