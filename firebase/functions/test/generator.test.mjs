@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { createGenerator, GenError, DEFAULTS } from '../src/generator.js';
+import { createGenerator, GenError, DEFAULTS, classifyApiError, scrub } from '../src/generator.js';
 import { loadPromptText, buildSystemText, PRESETS } from '../src/prompts.js';
 import { structuredSchema } from '../src/structured.js';
 import { costUsd, PRICES } from '../src/cost.js';
@@ -318,13 +318,60 @@ test('a busy Claude (429, 529, 5xx) gives a friendly message and the allowance b
   assert.equal((await drafts()).length, 0);
 });
 
-test('a missing or wrong API key says the server is not set up, without leaking details', async () => {
-  for (const status of [401, 403]) {
-    await assert.rejects(create(gen(fakeClaude([apiError(status)]))), (e) => {
-      assert.equal(e.code, 'internal');
-      assert.ok(!/api 40/.test(e.message), 'no raw error text reaches the person');
-      return true;
-    });
+test('a rejected key says the server is not set up, without leaking details', async () => {
+  await assert.rejects(create(gen(fakeClaude([apiError(401)]))), (e) => {
+    assert.equal(e.code, 'internal');
+    assert.equal(e.message, 'The server is not set up to reach Claude yet.');
+    assert.ok(!/api 40/.test(e.message), 'no raw error text reaches the person');
+    return true;
+  });
+  assert.equal((await get(`usage/uid-me/days/${DAY}`)).calls, 0, 'the allowance is given back');
+});
+
+test('each cause of failure gets its own wording, so the message itself says what to check', async () => {
+  const cases = [
+    [apiError(403), 'internal', "Claude didn't allow this request for this account."],
+    [apiError(404), 'internal', "The Claude model isn't available to this account yet."],
+    [Object.assign(new Error('Your credit balance is too low to access the API'), { status: 400 }), 'unavailable', 'The Anthropic account is out of credit.'],
+    [Object.assign(new Error('bad shape'), { status: 400 }), 'internal', 'Claude could not accept that request.'],
+    [apiError(429), 'unavailable', 'Claude is busy right now. Try again in a minute.'],
+  ];
+  for (const [err, code, message] of cases) {
+    await assert.rejects(create(gen(fakeClaude([err]))), (e) => { assert.equal(e.code, code); assert.equal(e.message, message); return true; });
+  }
+});
+
+test('the real reason is written to the private log, with the status and type, and never the key', async () => {
+  const lines = [];
+  const log = { error: (...a) => lines.push(a) };
+  const body = Object.assign(new Error('401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key sk-ant-api03-SECRETSECRET123"}}'),
+    { status: 401, error: { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key sk-ant-api03-SECRETSECRET123' } }, requestID: 'req_abc' });
+  const g = createGenerator({ db, anthropic: fakeClaude([body]), schema, taxonomy, systemText, now: () => NOW, log });
+  await reject(create(g), 'internal');
+  assert.equal(lines.length, 1);
+  const [label, facts] = lines[0];
+  assert.equal(label, 'claude call failed');
+  assert.equal(facts.status, 401);
+  assert.equal(facts.type, 'authentication_error');
+  assert.equal(facts.requestId, 'req_abc');
+  assert.equal(facts.mode, 'create');
+  assert.ok(!JSON.stringify(lines).includes('SECRETSECRET'), 'the key text must never be logged');
+  assert.ok(JSON.stringify(lines).includes('[KEY HIDDEN]'));
+});
+
+test('scrub hides anything shaped like a key, and cuts very long text', () => {
+  assert.equal(scrub('bad key sk-ant-api03-abcDEF_123-xyz here'), 'bad key [KEY HIDDEN] here');
+  assert.equal(scrub(undefined), '');
+  assert.equal(scrub('x'.repeat(2000)).length, 500);
+  assert.equal(scrub('two sk-ant-a1 and sk-ant-b2'), 'two [KEY HIDDEN] and [KEY HIDDEN]');
+});
+
+test('classifyApiError copes with odd errors that have no status or body', () => {
+  for (const e of [undefined, null, {}, 'a string', new Error('plain')]) {
+    const { error, facts } = classifyApiError(e);
+    assert.equal(error.code, 'internal');
+    assert.equal(error.message, 'Something went wrong making that challenge.');
+    assert.equal(facts.status, null);
   }
 });
 

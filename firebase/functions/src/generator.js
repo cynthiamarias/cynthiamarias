@@ -32,7 +32,26 @@ const MAX_ATTEMPTS = 2;
 
 const dayKeyOf = (date, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 
-export function createGenerator({ db, anthropic, schema, taxonomy, systemText, now = () => new Date() }) {
+// Anything that looks like an API key is hidden before it can reach a log.
+export const scrub = (text) => String(text ?? '').replace(/sk-ant-[A-Za-z0-9_-]+/g, '[KEY HIDDEN]').slice(0, 500);
+
+// Turns an error from Claude's API into (a) a plain message for the person that says roughly what
+// is wrong without exposing details, and (b) the facts worth writing to the private server log.
+export function classifyApiError(e) {
+  const status = e?.status;
+  const type = e?.error?.error?.type ?? e?.error?.type ?? e?.type ?? null;
+  const detail = scrub(e?.error?.error?.message ?? e?.message);
+  const facts = { status: status ?? null, type, detail, requestId: e?.requestID ?? e?.request_id ?? null };
+  if (status === 429 || status === 529 || status >= 500) return { facts, error: new GenError('unavailable', 'Claude is busy right now. Try again in a minute.') };
+  if (status === 401) return { facts, error: new GenError('internal', 'The server is not set up to reach Claude yet.') };
+  if (status === 403) return { facts, error: new GenError('internal', "Claude didn't allow this request for this account.") };
+  if (status === 404) return { facts, error: new GenError('internal', "The Claude model isn't available to this account yet.") };
+  if (status === 400 && /credit balance|billing|payment/i.test(detail)) return { facts, error: new GenError('unavailable', 'The Anthropic account is out of credit.') };
+  if (status === 400) return { facts, error: new GenError('internal', 'Claude could not accept that request.') };
+  return { facts, error: new GenError('internal', 'Something went wrong making that challenge.') };
+}
+
+export function createGenerator({ db, anthropic, schema, taxonomy, systemText, now = () => new Date(), log = console }) {
   // ---------- 1. input ----------
   function checkInput(mode, input) {
     if (!input || typeof input !== 'object') throw new GenError('invalid-argument', 'Missing request.');
@@ -172,10 +191,9 @@ export function createGenerator({ db, anthropic, schema, taxonomy, systemText, n
       if (cost > 0) await recordCost(uid, dayKey, monthKey, cost, usage).catch(() => {});
       await release(uid, dayKey, monthKey);
       if (e instanceof GenError) throw e;
-      const status = e?.status;
-      if (status === 429 || status === 529 || status >= 500) throw new GenError('unavailable', 'Claude is busy right now. Try again in a minute.');
-      if (status === 401 || status === 403) throw new GenError('internal', 'The server is not set up to reach Claude yet.');
-      throw new GenError('internal', 'Something went wrong making that challenge.');
+      const { facts, error } = classifyApiError(e);
+      log.error('claude call failed', { ...facts, mode, model: cfg.model, attempts }); // private server log; never sent to the person
+      throw error;
     }
 
     await recordCost(uid, dayKey, monthKey, cost, usage);
