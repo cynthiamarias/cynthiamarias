@@ -12,7 +12,8 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { -webkit-text-size-adjust: 100%; }
+/* The page never scrolls sideways. Without this, a sideways swipe on a card also pans the page. */
+html { -webkit-text-size-adjust: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
 body {
   margin: 0; min-height: 100vh; min-height: 100dvh; font-family: var(--body); color: var(--ink);
   background: var(--paper); line-height: 1.45;
@@ -97,6 +98,8 @@ main { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px 16px calc(va
 .rv-all p { margin: 8px 0 0; font-size: .9rem; text-align: center; }
 .rv-count { margin: 0 0 8px; font-size: .9rem; }
 .rv-note { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 500; }
+/* Cards handle sideways swipes themselves, so tell the browser to only scroll them up and down. */
+.rv-card { touch-action: pan-y; overflow-wrap: anywhere; }
 .rv-card h2 { margin-bottom: 6px; }
 .rv-meta { color: var(--muted); font-size: .85rem; margin: 0 0 10px; }
 .rv-summary { font-style: italic; }

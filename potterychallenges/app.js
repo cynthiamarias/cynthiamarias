@@ -23,7 +23,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.4', date: 'Nov 22', whatsNew: 'Approve all waiting challenges with one tap.' };
+const VERSION = { number: '0.5', date: 'Nov 22', whatsNew: 'Swiping a card no longer moves the whole page.' };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
