@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=0.6">
+<link rel="stylesheet" href="styles.css?v=0.7">
 </head>
 <body>
 
@@ -55,10 +55,7 @@
 
     <section id="tab-next" class="tab" data-tab="next" hidden>
       <h2>Up next</h2>
-      <div class="card empty">
-        <p><b>Nothing queued.</b></p>
-        <p class="muted">Challenges you add will line up here, each with a stage from planned to done.</p>
-      </div>
+      <div id="nextRoot"></div>
     </section>
 
     <section id="tab-library" class="tab" data-tab="library" hidden>
@@ -107,6 +104,6 @@
 </aside>
 
 <noscript><p style="padding:24px">This page needs JavaScript.</p></noscript>
-<script type="module" src="app.js?v=0.6"></script>
+<script type="module" src="app.js?v=0.7"></script>
 </body>
 </html>

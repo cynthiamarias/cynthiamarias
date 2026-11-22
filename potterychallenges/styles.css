@@ -145,6 +145,46 @@ main { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px 16px calc(va
   .lib-list { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ---------- projects: sheets, queue, detail ---------- */
+.act { display: grid; gap: 0; }
+.act .rv-actions + .rv-actions { margin-top: 12px; }
+dialog.sheet {
+  border: 0; border-radius: 20px 20px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+  width: min(560px, 100%); max-width: 100%; margin: auto auto var(--kb); max-height: 88vh; overflow: auto;
+  background: var(--card); color: var(--ink); font-family: var(--body);
+}
+dialog.sheet::backdrop { background: rgba(0, 0, 0, .45); }
+dialog.sheet h3 { font-family: var(--display); font-size: 1.25rem; margin: 0 0 8px; }
+dialog.sheet .btn, dialog.sheet .segs, dialog.sheet textarea, dialog.sheet input { margin-top: 10px; }
+@media (min-width: 820px) { dialog.sheet { margin: auto; border-radius: 20px; } }
+.stage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.stage-grid .btn { margin: 0; }
+textarea, input[type="date"], .field select {
+  font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px; width: 100%; min-height: 48px;
+}
+textarea { resize: vertical; }
+.field { display: grid; gap: 6px; margin-top: 14px; }
+.field > span { color: var(--muted); font-size: .85rem; }
+.pj-gap { margin-top: 12px; }
+.pj { margin-top: 12px; }
+.q-list { display: grid; gap: 10px; }
+.q-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+.q-left { display: grid; gap: 8px; min-width: 0; }
+.q-main { display: grid; gap: 2px; text-align: left; font: inherit; color: var(--ink); background: transparent; border: 0; padding: 4px 6px; min-height: 48px; cursor: pointer; }
+.pill { justify-self: start; font: inherit; font-weight: 700; color: var(--accent); background: transparent; border: 1px solid var(--accent); border-radius: 999px; min-height: 44px; padding: 0 16px; cursor: pointer; }
+.q-move { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; }
+.mv { font: inherit; font-size: 1.1rem; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; width: 52px; min-height: 48px; cursor: pointer; }
+.mv:disabled { opacity: .35; cursor: default; }
+.toast {
+  position: fixed; left: 12px; right: 12px; z-index: 40; text-align: center; padding: 12px 14px;
+  bottom: calc(var(--tabbar) + 12px + env(safe-area-inset-bottom) + var(--kb));
+  background: var(--ink); color: var(--paper); border-radius: 14px; box-shadow: 0 8px 24px -6px rgba(0,0,0,.35);
+}
+@media (min-width: 820px), (orientation: landscape) and (max-height: 600px) {
+  .toast { left: calc(var(--rail) + 12px); right: auto; bottom: 12px; max-width: 420px; }
+}
+
 /* ---------- what's new banner ---------- */
 .banner {
   position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabbar) + 12px + env(safe-area-inset-bottom) + var(--kb)); z-index: 20;

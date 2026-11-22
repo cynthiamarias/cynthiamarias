@@ -1,28 +1,53 @@
-// Loads the approved library and this person's own state, and saves favorites, draws and settings.
-// Everything is scoped to users/{uid}; the Firestore rules enforce that, not this file.
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp, increment }
+// Loads the approved library and this person's own state, and saves favorites, draws,
+// projects and settings. Everything is scoped to users/{uid}; the Firestore rules enforce
+// that, not this file.
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch,
+  serverTimestamp, increment, Timestamp }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { pool as buildPool } from './logic.js?v=0.6';
+import { pool as buildPool, queueOf, historyOf, findOpenFor, nextOrder, swapTarget } from './logic.js?v=0.7';
 
 export function createData(db, uid) {
   let challenges = [];
   let states = new Map();   // challengeId -> { favorite, timesDrawn, lastDrawnAt }
+  let projects = new Map(); // projectId -> project (see newProject below)
   let profile = {};         // users/{uid}: { firingsAvailable, mixesOwnGlazes, ... }
 
   const stateRef = (id) => doc(db, 'users', uid, 'challengeState', id);
+  const projectsCol = () => collection(db, 'users', uid, 'projects');
+  const projectRef = (id) => doc(db, 'users', uid, 'projects', id);
   const log = (type, c, extra = {}) =>
     addDoc(collection(db, 'users', uid, 'events'), { type, at: serverTimestamp(), challengeId: c.id, number: c.number ?? null, ...extra });
+  const logProject = (type, p, extra = {}) =>
+    log(type, { id: p.challengeId, number: p.challengeNumber }, { projectId: p.id, ...extra }).catch(() => {}); // the log must never block a tap
+  const allProjects = () => [...projects.values()];
 
   async function load() {
     // Members can only read approved challenges, so the query has to say so.
-    const [cs, ss, ps] = await Promise.all([
+    const [cs, ss, ps, pj] = await Promise.all([
       getDocs(query(collection(db, 'challenges'), where('status', '==', 'approved'))),
       getDocs(collection(db, 'users', uid, 'challengeState')),
       getDoc(doc(db, 'users', uid)),
+      getDocs(projectsCol()),
     ]);
     challenges = cs.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9));
     states = new Map(ss.docs.map((d) => [d.id, d.data()]));
     profile = ps.exists() ? ps.data() : {};
+    projects = new Map(pj.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+  }
+
+  // A brand-new project, as stored. Snapshots of the title and category keep history readable
+  // even if the challenge is ever retired.
+  const newProject = (c, stage, fields = {}) => ({
+    challengeId: c.id, challengeNumber: c.number ?? null, title: c.content.title, category: c.category,
+    stage, stageHistory: [{ stage, at: Timestamp.now() }],
+    queueOrder: nextOrder(allProjects()), targetDate: null, occasion: null, notes: '', completedAt: null,
+    ...fields,
+  });
+
+  async function save(id, patch) {
+    await updateDoc(projectRef(id), { ...patch, updatedAt: serverTimestamp() });
+    projects.set(id, { ...projects.get(id), ...patch });
+    return projects.get(id);
   }
 
   return {
@@ -37,7 +62,7 @@ export function createData(db, uid) {
       const next = !states.get(c.id)?.favorite;
       await setDoc(stateRef(c.id), { favorite: next, favoritedAt: next ? serverTimestamp() : null }, { merge: true });
       states.set(c.id, { ...(states.get(c.id) ?? {}), favorite: next });
-      log(next ? 'favorited' : 'unfavorited', c).catch(() => {}); // the log must never block the tap
+      log(next ? 'favorited' : 'unfavorited', c).catch(() => {});
       return next;
     },
 
@@ -51,6 +76,76 @@ export function createData(db, uid) {
     async setFirings(list) {
       await setDoc(doc(db, 'users', uid), { firingsAvailable: list }, { merge: true });
       profile = { ...profile, firingsAvailable: list };
+    },
+
+    // ---------- projects ----------
+    projects: allProjects,
+    projectById: (id) => projects.get(id) ?? null,
+    queue: () => queueOf(allProjects()),
+    history: () => historyOf(allProjects()),
+    openFor: (challengeId) => findOpenFor(allProjects(), challengeId),
+
+    // Put a challenge in the up-next queue. If it is already queued, return that one.
+    async addToQueue(c) {
+      const existing = findOpenFor(allProjects(), c.id);
+      if (existing) return { project: existing, created: false };
+      const ref = doc(projectsCol());
+      const p = newProject(c, 'planned');
+      await setDoc(ref, { ...p, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      const project = { id: ref.id, ...p };
+      projects.set(ref.id, project);
+      logProject('queued', project);
+      return { project, created: true };
+    },
+
+    // Record a finished piece. If one is already in progress it is finished, otherwise a new
+    // finished project is created, so "mark done" works with or without planning ahead.
+    async markDone(c, { date, notes }) {
+      const when = Timestamp.fromDate(date);
+      const open = findOpenFor(allProjects(), c.id);
+      if (open) {
+        const merged = notes ? (open.notes ? `${open.notes}\n${notes}` : notes) : open.notes;
+        const p = await save(open.id, { stage: 'done', stageHistory: [...open.stageHistory, { stage: 'done', at: Timestamp.now() }], completedAt: when, notes: merged });
+        logProject('completed', p);
+        return p;
+      }
+      const ref = doc(projectsCol());
+      const p = newProject(c, 'done', { notes: notes ?? '', completedAt: when });
+      await setDoc(ref, { ...p, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      const project = { id: ref.id, ...p };
+      projects.set(ref.id, project);
+      logProject('completed', project);
+      return project;
+    },
+
+    async setStage(p, stage) {
+      if (p.stage === stage) return p;
+      const history = [...(p.stageHistory ?? []), { stage, at: Timestamp.now() }];
+      const updated = await save(p.id, { stage, stageHistory: history, completedAt: stage === 'done' ? (p.completedAt ?? Timestamp.now()) : null });
+      logProject('stage', updated, { from: p.stage, to: stage });
+      if (stage === 'done') logProject('completed', updated);
+      return updated;
+    },
+
+    updateFields: (p, fields) => save(p.id, fields),
+
+    // Move one place up (-1) or down (+1) in the queue by swapping order values with the neighbour.
+    async move(p, dir) {
+      const other = swapTarget(queueOf(allProjects()), p.id, dir);
+      if (!other) return false;
+      const batch = writeBatch(db);
+      batch.update(projectRef(p.id), { queueOrder: other.queueOrder, updatedAt: serverTimestamp() });
+      batch.update(projectRef(other.id), { queueOrder: p.queueOrder, updatedAt: serverTimestamp() });
+      await batch.commit();
+      projects.set(p.id, { ...p, queueOrder: other.queueOrder });
+      projects.set(other.id, { ...other, queueOrder: p.queueOrder });
+      return true;
+    },
+
+    async remove(p) {
+      await deleteDoc(projectRef(p.id));
+      projects.delete(p.id);
+      logProject('removed', p);
     },
   };
 }

@@ -6,9 +6,10 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signO
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { mountReview } from './review.js?v=0.6';
-import { createData } from './data.js?v=0.6';
-import { createBrowse } from './browse.js?v=0.6';
+import { mountReview } from './review.js?v=0.7';
+import { createData } from './data.js?v=0.7';
+import { createBrowse } from './browse.js?v=0.7';
+import { createProjects } from './projects.js?v=0.7';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -23,7 +24,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.6', date: 'Nov 21', whatsNew: "Updates now check themselves: tap Update when a new version is ready." };
+const VERSION = { number: '0.7', date: 'Nov 21', whatsNew: "Mark challenges done, and plan an up-next queue with stages." };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
@@ -131,7 +132,8 @@ function showTab() {
   // The review queue is fetched fresh each time the tab opens, and only for admins.
   if (tab === 'review' && me && me.role === 'admin') mountReview($('reviewRoot'), { db, email: me.email });
   if (browse) {
-    if (tab === 'draw') browse.drawTab();
+    if (tab === 'next') projects.upNextTab($('nextRoot'));
+    else if (tab === 'draw') browse.drawTab();
     else if (tab === 'library') browse.libraryTab();
     else if (tab === 'me') browse.meTab();
   }
@@ -185,6 +187,7 @@ $('signOut').addEventListener('click', doSignOut);
 $('deniedSignOut').addEventListener('click', doSignOut);
 
 let browse = null;     // Draw / Library / settings screens, built after sign-in
+let projects = null;   // Up next, Done and project details, built after sign-in
 let me = null;         // { uid, email, name, role } once allowed in
 let sessionUid = null; // who we last handled, allowed or not
 
@@ -212,6 +215,7 @@ async function applyAuth(user) {
   if (!user) {
     me = null;
     browse = null;
+    projects = null;
     return show('signedOut');
   }
   const email = (user.email || '').toLowerCase();
@@ -237,14 +241,17 @@ async function applyAuth(user) {
 
   // Load the approved library and this person's own state, then build the screens.
   browse = null;
+  projects = null;
   try {
     const data = createData(db, user.uid);
     await data.load();
-    browse = createBrowse({ data, taxonomy: await taxonomyPromise, drawRoot: $('drawRoot'), libRoot: $('libRoot'), meRoot: $('meSettings') });
+    const taxonomy = await taxonomyPromise;
+    projects = createProjects({ data, taxonomy });
+    browse = createBrowse({ data, taxonomy, projects, drawRoot: $('drawRoot'), libRoot: $('libRoot'), meRoot: $('meSettings') });
   } catch (e) {
     snaplog(`library load failed: ${e.code || e.message}`);
     const msg = `Couldn't load the library (${e.code || e.message}). Pull to refresh to try again.`;
-    for (const id of ['drawRoot', 'libRoot']) $(id).textContent = msg;
+    for (const id of ['drawRoot', 'libRoot', 'nextRoot']) $(id).textContent = msg;
   }
   show('app');
   showTab();

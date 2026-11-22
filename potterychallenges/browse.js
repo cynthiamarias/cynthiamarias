@@ -1,14 +1,14 @@
 // Draw tab (one challenge at a time, random, with filters) and Library tab (a list to browse),
 // plus the small settings block on the Me tab.
-import { el, renderCard, hasSafetyNotes, TIME_LABEL } from './card.js?v=0.6';
-import { NO_FILTERS, OUTSIDE_FIRINGS, DEFAULT_FIRINGS, pick, pushRecent, dots } from './logic.js?v=0.6';
+import { el, renderCard, hasSafetyNotes, TIME_LABEL } from './card.js?v=0.7';
+import { NO_FILTERS, OUTSIDE_FIRINGS, DEFAULT_FIRINGS, pick, pushRecent, dots } from './logic.js?v=0.7';
 
 const store = (key, value) => {
   try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) { return null; }
 };
 const SEASON_LABEL = { spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter', valentines: "Valentine's", easter: 'Easter', halloween: 'Halloween', christmas: 'Christmas' };
 
-export function createBrowse({ data, taxonomy, drawRoot, libRoot, meRoot }) {
+export function createBrowse({ data, taxonomy, projects, drawRoot, libRoot, meRoot }) {
   const catLabel = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
 
   // ---------- shared bits ----------
@@ -97,7 +97,7 @@ export function createBrowse({ data, taxonomy, drawRoot, libRoot, meRoot }) {
     });
     const other = el('button', { type: 'button', className: 'btn primary', textContent: secondaryText });
     other.addEventListener('click', onSecondary);
-    return el('div', { className: 'rv-actions' }, fav, other);
+    return el('div', { className: 'act' }, el('div', { className: 'rv-actions' }, fav, other), projects.challengeButtons(c));
   }
 
   // ---------- Library ----------
@@ -117,9 +117,15 @@ export function createBrowse({ data, taxonomy, drawRoot, libRoot, meRoot }) {
       b.addEventListener('click', () => { lib.mode = mode; renderLibrary(); });
       return b;
     };
-    libRoot.append(el('div', { className: 'segs' }, seg('all', 'All'), seg('fav', 'Favorites')),
-      el('div', { className: 'filters' },
-        select('Category', filterOptions().cats, lib.category, (v) => { lib.category = v; renderLibrary(); })));
+    libRoot.append(el('div', { className: 'segs' }, seg('all', 'All'), seg('fav', 'Favorites'), seg('done', 'Done')));
+    if (lib.mode === 'done') {
+      const box = el('div');
+      libRoot.append(box);
+      projects.renderDone(box);
+      return;
+    }
+    libRoot.append(el('div', { className: 'filters' },
+      select('Category', filterOptions().cats, lib.category, (v) => { lib.category = v; renderLibrary(); })));
 
     const rows = data.visiblePool({ ...NO_FILTERS, category: lib.category }).filter((c) => lib.mode === 'all' || data.isFavorite(c.id));
     if (!rows.length) {

@@ -10,7 +10,7 @@ import {
   assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, runTransaction, addDoc, serverTimestamp, increment,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, runTransaction, addDoc, serverTimestamp, increment, writeBatch, Timestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
 
@@ -379,4 +379,67 @@ test('approve all: running it again with nothing pending changes no numbers', as
 
 test('approve all: a member cannot do it', async () => {
   await assertFails(approveAll(db(ME), ['c2']));
+});
+
+// ---------- projects: the exact operations potterychallenges/data.js performs ----------
+const newProj = (over = {}) => ({
+  challengeId: 'c1', challengeNumber: 1, title: 'One', category: 'functional-forms',
+  stage: 'planned', stageHistory: [{ stage: 'planned', at: Timestamp.now() }],
+  queueOrder: 1, targetDate: null, occasion: null, notes: '', completedAt: null,
+  createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over,
+});
+
+test('projects: add to the queue, stage it through every stage, finish it, then remove it', async () => {
+  const d = db(ME);
+  const ref = doc(collection(d, 'users/uid-me/projects'));
+  await assertSucceeds(setDoc(ref, newProj()));
+  let history = [{ stage: 'planned', at: Timestamp.now() }];
+  for (const stage of ['made', 'drying', 'bisque-ready', 'bisque-fired', 'glazed', 'glaze-fired', 'done']) {
+    history = [...history, { stage, at: Timestamp.now() }];
+    await assertSucceeds(updateDoc(ref, { stage, stageHistory: history, completedAt: stage === 'done' ? Timestamp.now() : null, updatedAt: serverTimestamp() }));
+  }
+  await assertSucceeds(updateDoc(ref, { notes: 'Glaze ran a little', occasion: 'Gift', targetDate: Timestamp.fromDate(new Date(2026, 11, 20, 12)), updatedAt: serverTimestamp() }));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test('projects: marking done without planning creates a finished project directly', async () => {
+  await assertSucceeds(setDoc(doc(collection(db(ME), 'users/uid-me/projects')), newProj({ stage: 'done', stageHistory: [{ stage: 'done', at: Timestamp.now() }], completedAt: Timestamp.fromDate(new Date(2026, 10, 21, 12)), notes: 'First try' })));
+});
+
+test('projects: bad stages and over-long notes are refused on create and on update', async () => {
+  const d = db(ME);
+  await assertFails(setDoc(doc(collection(d, 'users/uid-me/projects')), newProj({ stage: 'cooling' })));
+  await assertFails(setDoc(doc(collection(d, 'users/uid-me/projects')), newProj({ notes: 'x'.repeat(4001) })));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/projects/p1'), { stage: 'abandoned' }));
+  await assertFails(updateDoc(doc(d, 'users/uid-me/projects/p1'), { notes: 'y'.repeat(4001) }));
+});
+
+test('projects: moving swaps two order values in one batch', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'users/uid-me/projects/p2'), { stage: 'planned', queueOrder: 2 });
+  });
+  const d = db(ME);
+  const batch = writeBatch(d);
+  batch.update(doc(d, 'users/uid-me/projects/p1'), { queueOrder: 2, updatedAt: serverTimestamp() });
+  batch.update(doc(d, 'users/uid-me/projects/p2'), { queueOrder: 1, updatedAt: serverTimestamp() });
+  await assertSucceeds(batch.commit());
+});
+
+test('projects: the activity log accepts the new event types with their extra fields', async () => {
+  const d = db(ME);
+  for (const type of ['queued', 'stage', 'completed', 'removed']) {
+    await assertSucceeds(addDoc(collection(d, 'users/uid-me/events'), { type, at: serverTimestamp(), challengeId: 'c1', number: 1, projectId: 'p1', from: 'planned', to: 'made' }));
+  }
+});
+
+test('projects: nobody can read or touch someone else\'s projects, not even an admin', async () => {
+  for (const u of [OTHER, ADMIN, STRANGER]) {
+    const d = db(u);
+    await assertFails(getDocs(collection(d, 'users/uid-me/projects')));
+    await assertFails(getDoc(doc(d, 'users/uid-me/projects/p1')));
+    await assertFails(setDoc(doc(collection(d, 'users/uid-me/projects')), newProj()));
+    await assertFails(updateDoc(doc(d, 'users/uid-me/projects/p1'), { notes: 'x' }));
+    await assertFails(deleteDoc(doc(d, 'users/uid-me/projects/p1')));
+  }
+  await assertSucceeds(getDocs(collection(db(ME), 'users/uid-me/projects')));
 });

@@ -17,7 +17,7 @@ const write = (f, s) => writeFileSync(new URL(f, dir), s);
 // Relative imports: from './x.js' or './x.js?v=old' -> './x.js?v=new'
 const stampImports = (s) => s.replace(/(from\s+')(\.\/[a-z]+\.js)(\?v=[\d.]+)?(')/g, `$1$2?v=${version}$4`);
 
-for (const f of ['app.js', 'review.js', 'data.js', 'card.js', 'browse.js', 'logic.js']) {
+for (const f of ['app.js', 'review.js', 'data.js', 'card.js', 'browse.js', 'logic.js', 'projects.js']) {
   let s = stampImports(read(f));
   if (f === 'app.js') {
     const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
