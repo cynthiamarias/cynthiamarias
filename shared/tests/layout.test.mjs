@@ -49,8 +49,8 @@ test('openSheet anchors any sheet that holds a text box to the top', () => {
 });
 
 test('the sheets that have a text box really do contain a textarea (so the rule above catches them)', () => {
-  assert.ok(/el\('textarea'/.test(projects), 'the Done sheet has a notes box');
-  assert.ok(/el\('textarea'/.test(create), 'the Create and Remix sheets have text boxes');
+  assert.ok(/textBox\(/.test(projects), 'the Done sheet has a notes box');
+  assert.ok(/textBox\(/.test(create), 'the Create and Remix sheets have text boxes');
 });
 
 test('the toast and banners may still sit above the keyboard (they hold no text box)', () => {

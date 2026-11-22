@@ -1,7 +1,7 @@
 // Create (a new challenge from a short prompt) and Remix (change an existing one).
 // The server function does the writing and the safety checking; this file is only the screens:
 // ask, wait, preview, then Save / Try again / Discard. Nothing is kept until Save is tapped.
-import { el, renderCard, TIME_LABEL } from './card.js?v=0.11';
+import { el, renderCard, TIME_LABEL, textBox } from './card.js?v=0.12';
 
 const REMIX_CHOICES = [
   ['easier', 'Easier'], ['harder', 'Harder'], ['quicker', 'Quicker and smaller'], ['set', 'Giftable set of 3–4'],
@@ -71,7 +71,7 @@ export function createCreator({ data, ui, call, labels = {}, refresh }) {
 
   // ---------- Create ----------
   function createSheet() {
-    const prompt = el('textarea', { rows: 3, maxLength: 300, ariaLabel: 'What do you want to make?', placeholder: 'e.g. a pinch-pot mug for my sister, finished in an afternoon' });
+    const prompt = textBox({ name: 'challenge_idea', rows: 3, maxLength: 300, ariaLabel: 'What do you want to make?', placeholder: 'e.g. a pinch-pot mug for my sister, finished in an afternoon' });
     const option = (value, text) => el('option', { value, textContent: text });
     const time = el('select', { ariaLabel: 'Time' }, option('', 'Any time'), ...Object.entries(TIME_LABEL).map(([v, t]) => option(v, t)));
     const diff = el('select', { ariaLabel: 'Difficulty' }, option('', 'Any difficulty'), ...[1, 2, 3, 4, 5].map((n) => option(String(n), `Difficulty ${n}`)));
@@ -89,7 +89,7 @@ export function createCreator({ data, ui, call, labels = {}, refresh }) {
 
   // ---------- Remix ----------
   function remixSheet(item) {
-    const note = el('textarea', { rows: 2, maxLength: 300, ariaLabel: 'Anything to add', placeholder: 'Anything to add? (optional)' });
+    const note = textBox({ name: 'remix_note', rows: 2, maxLength: 300, ariaLabel: 'Anything to add', placeholder: 'Anything to add? (optional)' });
     const grid = el('div', { className: 'stage-grid' });
     const source = item.isMine ? { type: 'mine', id: item.docId } : { type: 'library', id: item.id };
     for (const [preset, text] of REMIX_CHOICES) {

@@ -6,7 +6,7 @@ import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateD
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
-import { pool as buildPool, queueOf, historyOf, findOpenFor, nextOrder, swapTarget, mineItem, docIdOfMine } from './logic.js?v=0.11';
+import { pool as buildPool, queueOf, historyOf, findOpenFor, nextOrder, swapTarget, mineItem, docIdOfMine } from './logic.js?v=0.12';
 
 export function createData(db, uid, storage) {
   let challenges = [];

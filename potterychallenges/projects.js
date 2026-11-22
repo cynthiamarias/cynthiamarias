@@ -1,10 +1,10 @@
 // Projects: marking a challenge done, the up-next queue, stages, and per-project details.
 // One project is one attempt at one challenge. Everything from the data goes in with
 // textContent, never as HTML.
-import { el, renderCard } from './card.js?v=0.11';
-import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.11';
+import { el, renderCard, textBox } from './card.js?v=0.12';
+import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.12';
 import { Timestamp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { prepareImage } from './image.js?v=0.11';
+import { prepareImage } from './image.js?v=0.12';
 
 export function createProjects({ data, taxonomy }) {
   const catLabel = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
@@ -49,7 +49,7 @@ export function createProjects({ data, taxonomy }) {
       segs.append(b);
     }
     paint();
-    const notes = el('textarea', { rows: 3, ariaLabel: 'Notes', placeholder: 'Notes, optional: what worked, what you would change' });
+    const notes = textBox({ name: 'finish_notes', rows: 3, ariaLabel: 'Notes', placeholder: 'Notes, optional: what worked, what you would change' });
     const save = el('button', { type: 'button', className: 'btn primary', textContent: 'Save' });
     save.addEventListener('click', async () => {
       const date = choice === 'today' ? noon(0) : choice === 'yesterday' ? noon(1) : dateFromInput(picker.value);
@@ -126,7 +126,7 @@ export function createProjects({ data, taxonomy }) {
     occ.addEventListener('change', async () => { try { await data.updateFields(p, { occasion: occ.value || null }); toast('Saved.'); } catch (e) { fail(e); } });
     card.append(el('label', { className: 'field' }, el('span', { textContent: 'Occasion' }), occ));
 
-    const notes = el('textarea', { rows: 5, value: p.notes ?? '', ariaLabel: 'Notes', placeholder: 'Notes: clay, glaze, what happened…' });
+    const notes = textBox({ name: 'project_notes', rows: 5, value: p.notes ?? '', ariaLabel: 'Notes', placeholder: 'Notes: clay, glaze, what happened…' });
     notes.addEventListener('change', async () => { try { await data.updateFields(p, { notes: notes.value.trim() }); toast('Notes saved.'); } catch (e) { fail(e); } });
     card.append(el('label', { className: 'field' }, el('span', { textContent: 'Notes' }), notes));
 

@@ -8,11 +8,11 @@ import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import { getStorage } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-functions.js';
-import { mountReview } from './review.js?v=0.11';
-import { createData } from './data.js?v=0.11';
-import { createBrowse } from './browse.js?v=0.11';
-import { createProjects } from './projects.js?v=0.11';
-import { createCreator } from './create.js?v=0.11';
+import { mountReview } from './review.js?v=0.12';
+import { createData } from './data.js?v=0.12';
+import { createBrowse } from './browse.js?v=0.12';
+import { createProjects } from './projects.js?v=0.12';
+import { createCreator } from './create.js?v=0.12';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -31,7 +31,7 @@ const functions = getFunctions(app, 'us-central1');
 const callServer = (name) => async (input) => (await httpsCallable(functions, name, { timeout: 120000 })(input)).data;
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.11', date: 'Nov 22', whatsNew: "Fix: the screen no longer jumps while you type in a sheet." };
+const VERSION = { number: '0.12', date: 'Nov 22', whatsNew: "Fix: the autofill bar above the keyboard no longer jumps while you type." };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));

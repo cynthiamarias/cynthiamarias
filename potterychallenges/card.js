@@ -1,11 +1,26 @@
 // One challenge as a card. Everything from the data goes in with textContent, never as HTML.
-import { dots, OUTSIDE_FIRINGS } from './logic.js?v=0.11';
+import { dots, OUTSIDE_FIRINGS } from './logic.js?v=0.12';
 
 export const el = (tag, props = {}, ...kids) => {
   const n = Object.assign(document.createElement(tag), props);
   for (const k of kids.flat()) if (k != null) n.append(k);
   return n;
 };
+// A text box that browsers should treat as plain writing, not as a form to autofill. Without this, Chrome
+// and Safari on iPhone decide a box might be a password, card or address field and put their autofill bar
+// above the keyboard, and that bar redraws (jumps) on every letter. Every text box in the app is made here.
+export function textBox({ name, ...props }) {
+  const t = el('textarea', props);
+  t.name = name;                                  // a plain, non-address name, so nothing is guessed from it
+  t.setAttribute('autocomplete', 'off');          // no saved passwords, cards, addresses or contacts
+  t.setAttribute('autocapitalize', 'sentences');
+  t.setAttribute('data-lpignore', 'true');        // LastPass
+  t.setAttribute('data-1p-ignore', 'true');       // 1Password
+  t.setAttribute('data-bwignore', 'true');        // Bitwarden
+  t.setAttribute('data-form-type', 'other');      // Dashlane
+  return t;
+}
+
 const list = (items) => el('ul', {}, items.map((t) => el('li', { textContent: t })));
 const section = (title, ...kids) => el('div', { className: 'rv-sec' }, el('h3', { textContent: title }), ...kids);
 
