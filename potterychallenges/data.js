@@ -2,7 +2,7 @@
 // Everything is scoped to users/{uid}; the Firestore rules enforce that, not this file.
 import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp, increment }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { pool as buildPool } from './logic.js';
+import { pool as buildPool } from './logic.js?v=0.6';
 
 export function createData(db, uid) {
   let challenges = [];

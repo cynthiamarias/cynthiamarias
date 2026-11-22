@@ -1,7 +1,7 @@
 // Draw tab (one challenge at a time, random, with filters) and Library tab (a list to browse),
 // plus the small settings block on the Me tab.
-import { el, renderCard, hasSafetyNotes, TIME_LABEL } from './card.js';
-import { NO_FILTERS, OUTSIDE_FIRINGS, DEFAULT_FIRINGS, pick, pushRecent, dots } from './logic.js';
+import { el, renderCard, hasSafetyNotes, TIME_LABEL } from './card.js?v=0.6';
+import { NO_FILTERS, OUTSIDE_FIRINGS, DEFAULT_FIRINGS, pick, pushRecent, dots } from './logic.js?v=0.6';
 
 const store = (key, value) => {
   try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) { return null; }

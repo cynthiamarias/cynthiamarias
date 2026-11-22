@@ -6,9 +6,9 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signO
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { mountReview } from './review.js';
-import { createData } from './data.js';
-import { createBrowse } from './browse.js';
+import { mountReview } from './review.js?v=0.6';
+import { createData } from './data.js?v=0.6';
+import { createBrowse } from './browse.js?v=0.6';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -23,7 +23,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.5', date: 'Nov 22', whatsNew: 'Swiping a card no longer moves the whole page.' };
+const VERSION = { number: '0.6', date: 'Nov 21', whatsNew: "Updates now check themselves: tap Update when a new version is ready." };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
@@ -93,6 +93,27 @@ $('siteFoot').textContent = `Pottery Challenges · v${VERSION.number} · updated
   $('whatsNewText').textContent = VERSION.whatsNew;
   $('whatsNewOk').addEventListener('click', () => { whatsNewDue = false; $('whatsNew').hidden = true; remember(); });
 })();
+
+// ---------- "a new version is ready" ----------
+// version.json is fetched fresh every time (cache: 'no-store'), so a phone holding an old
+// copy of the app finds out and can reload with one tap. Reloading with a new ?v= in the
+// address forces a fresh page, whose files are all stamped with the new version.
+let updateShown = false;
+async function checkForUpdate() {
+  if (updateShown) return;
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const { version } = await r.json();
+    if (version && version !== VERSION.number) {
+      updateShown = true;
+      $('updateBanner').hidden = false;
+      $('updateNow').addEventListener('click', () => location.replace(`${location.pathname}?v=${encodeURIComponent(version)}`));
+      snaplog(`update available: running ${VERSION.number}, published ${version}`);
+    }
+  } catch (e) { /* offline or blocked: just try again next time */ }
+}
+checkForUpdate();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
 
 // ---------- tabs ----------
 const TABS = ['draw', 'next', 'library', 'me'];
