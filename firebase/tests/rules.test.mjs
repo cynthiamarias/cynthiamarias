@@ -443,3 +443,50 @@ test('projects: nobody can read or touch someone else\'s projects, not even an a
   }
   await assertSucceeds(getDocs(collection(db(ME), 'users/uid-me/projects')));
 });
+
+// ---------- photos: the exact Firestore operations potterychallenges/data.js performs ----------
+const photoDoc = (over = {}) => ({
+  projectId: 'p1', challengeId: 'c1', challengeNumber: 1, stage: 'made',
+  storagePath: 'users/uid-me/photos/ph9/full.jpg', thumbPath: 'users/uid-me/photos/ph9/thumb.jpg',
+  width: 2048, height: 1536, bytes: 800000, caption: '', visibility: 'private', createdAt: serverTimestamp(), ...over,
+});
+
+test('photos: a member saves a private photo record, lists a project\'s photos, bumps the count, and deletes it', async () => {
+  const d = db(ME);
+  const ref = doc(collection(d, 'users/uid-me/photos'));
+  await assertSucceeds(setDoc(ref, photoDoc()));
+  const mine = await assertSucceeds(getDocs(query(collection(d, 'users/uid-me/photos'), where('projectId', '==', 'p1'))));
+  assert.ok(mine.size >= 1);
+  await assertSucceeds(updateDoc(doc(d, 'users/uid-me/projects/p1'), { photoCount: 1, updatedAt: serverTimestamp() }));
+  await assertSucceeds(addDoc(collection(d, 'users/uid-me/events'), { type: 'photo_added', at: serverTimestamp(), challengeId: 'c1', number: 1, projectId: 'p1', photoId: ref.id }));
+  await assertSucceeds(deleteDoc(ref));
+});
+
+test('photos: a record that is not private is refused', async () => {
+  const d = db(ME);
+  await assertFails(setDoc(doc(collection(d, 'users/uid-me/photos')), photoDoc({ visibility: 'public' })));
+  const noVisibility = photoDoc();
+  delete noVisibility.visibility;
+  await assertFails(setDoc(doc(collection(d, 'users/uid-me/photos')), noVisibility));
+});
+
+test('photos: nobody else can list, read, add or delete a member\'s photo records', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'users/uid-me/photos/ph1'), photoDoc()));
+  for (const u of [OTHER, ADMIN, STRANGER]) {
+    const d = db(u);
+    await assertFails(getDocs(query(collection(d, 'users/uid-me/photos'), where('projectId', '==', 'p1'))));
+    await assertFails(getDoc(doc(d, 'users/uid-me/photos/ph1')));
+    await assertFails(setDoc(doc(collection(d, 'users/uid-me/photos')), photoDoc()));
+    await assertFails(deleteDoc(doc(d, 'users/uid-me/photos/ph1')));
+  }
+});
+
+test('photos: the full upload-and-delete path in Storage works for the owner and nobody else', async () => {
+  const bytes = new Uint8Array(500);
+  const path = (f) => `users/uid-me/photos/ph9/${f}`;
+  for (const f of ['full.jpg', 'thumb.jpg']) await assertSucceeds(put(ME, path(f), bytes));
+  await assertSucceeds(getBytes(ref(as(ME).storage(), path('thumb.jpg'))));
+  await assertFails(getBytes(ref(as(OTHER).storage(), path('thumb.jpg'))));
+  await assertFails(deleteObject(ref(as(ADMIN).storage(), path('full.jpg'))));
+  for (const f of ['full.jpg', 'thumb.jpg']) await assertSucceeds(deleteObject(ref(as(ME).storage(), path(f))));
+});

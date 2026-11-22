@@ -6,10 +6,11 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signO
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore, doc, getDoc }
   from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
-import { mountReview } from './review.js?v=0.7';
-import { createData } from './data.js?v=0.7';
-import { createBrowse } from './browse.js?v=0.7';
-import { createProjects } from './projects.js?v=0.7';
+import { getStorage } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-storage.js';
+import { mountReview } from './review.js?v=0.8';
+import { createData } from './data.js?v=0.8';
+import { createBrowse } from './browse.js?v=0.8';
+import { createProjects } from './projects.js?v=0.8';
 
 // Public web config (same project as the wishlist). The rules protect the data, not this.
 const app = initializeApp({
@@ -22,9 +23,10 @@ const app = initializeApp({
 });
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 // Bump with every change, and say what's new in a few words.
-const VERSION = { number: '0.7', date: 'Nov 21', whatsNew: "Mark challenges done, and plan an up-next queue with stages." };
+const VERSION = { number: '0.8', date: 'Nov 21', whatsNew: "Add photos to your projects. Location data is removed first." };
 
 // Category labels come from the same taxonomy file the validator uses (published at /shared/).
 const taxonomyPromise = fetch('../shared/taxonomy.json').then((r) => r.json()).catch(() => ({ categories: [] }));
@@ -243,7 +245,7 @@ async function applyAuth(user) {
   browse = null;
   projects = null;
   try {
-    const data = createData(db, user.uid);
+    const data = createData(db, user.uid, storage);
     await data.load();
     const taxonomy = await taxonomyPromise;
     projects = createProjects({ data, taxonomy });

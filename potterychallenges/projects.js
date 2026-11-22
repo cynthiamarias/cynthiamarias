@@ -1,9 +1,10 @@
 // Projects: marking a challenge done, the up-next queue, stages, and per-project details.
 // One project is one attempt at one challenge. Everything from the data goes in with
 // textContent, never as HTML.
-import { el, renderCard } from './card.js?v=0.7';
-import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.7';
+import { el, renderCard } from './card.js?v=0.8';
+import { STAGES, STAGE_LABEL, OCCASIONS, dateFromInput, inputFromDate, toMs } from './logic.js?v=0.8';
 import { Timestamp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+import { prepareImage } from './image.js?v=0.8';
 
 export function createProjects({ data, taxonomy }) {
   const catLabel = Object.fromEntries((taxonomy.categories ?? []).map((c) => [c.id, c.label]));
@@ -123,6 +124,8 @@ export function createProjects({ data, taxonomy }) {
     notes.addEventListener('change', async () => { try { await data.updateFields(p, { notes: notes.value.trim() }); toast('Notes saved.'); } catch (e) { fail(e); } });
     card.append(el('label', { className: 'field' }, el('span', { textContent: 'Notes' }), notes));
 
+    card.append(photosSection(p, again));
+
     const hist = (p.stageHistory ?? []).map((h) => `${STAGE_LABEL[h.stage] ?? h.stage}: ${fmt(h.at)}`);
     if (hist.length) card.append(el('div', { className: 'rv-sec' }, el('h3', { textContent: 'History' }), el('ul', {}, hist.map((t) => el('li', { textContent: t })))));
     root.append(card);
@@ -144,6 +147,64 @@ export function createProjects({ data, taxonomy }) {
       openSheet(el('h3', { textContent: 'Remove this project?' }), el('p', { textContent: 'Its notes and stage history go with it. The challenge itself stays in your library.' }), yes, cancelBtn('Keep it'));
     });
     root.append(el('div', { className: 'pj-gap' }, remove));
+  }
+
+  // ---------- photos on a project ----------
+  function photosSection(p, again) {
+    const grid = el('div', { className: 'photo-grid' });
+    const status = el('p', { className: 'muted photo-status' });
+    const input = el('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true });
+    const add = el('button', { type: 'button', className: 'btn', textContent: '+ Add photo' });
+    add.addEventListener('click', () => input.click());
+
+    input.addEventListener('change', async () => {
+      const files = [...input.files];
+      input.value = '';
+      if (!files.length) return;
+      add.disabled = true;
+      let done = 0, failed = 0;
+      for (const f of files) {
+        status.textContent = `Preparing photo ${done + failed + 1} of ${files.length}…`;
+        try {
+          const prepared = await prepareImage(f);
+          status.textContent = `Uploading photo ${done + failed + 1} of ${files.length}…`;
+          await data.addPhoto(data.projectById(p.id) ?? p, prepared);
+          done++;
+        } catch (e) { failed++; status.textContent = e.message || String(e.code); await new Promise((r) => setTimeout(r, 2500)); }
+      }
+      add.disabled = false;
+      toast(`${done ? `${done} photo${done === 1 ? '' : 's'} added` : 'No photos added'}${failed ? `, ${failed} failed` : ''}.`);
+      again();
+    });
+
+    (async () => {
+      try {
+        const photos = await data.photosFor(p.id);
+        if (!photos.length) { status.textContent = 'No photos yet.'; return; }
+        for (const ph of photos) {
+          const b = el('button', { type: 'button', className: 'photo', ariaLabel: 'Open photo' });
+          const img = el('img', { alt: '', loading: 'lazy', width: 120, height: 120 });
+          b.append(img);
+          b.addEventListener('click', () => viewPhoto(ph, again));
+          grid.append(b);
+          data.thumbUrl(ph).then((u) => { img.src = u; }).catch(() => { b.textContent = '⚠'; });
+        }
+      } catch (e) { status.textContent = `Couldn't load photos (${e.code || e.message}).`; }
+    })();
+
+    return el('div', { className: 'rv-sec' }, el('h3', { textContent: 'Photos' }), grid, status, add, input,
+      el('p', { className: 'muted photo-note', textContent: 'Private to you. Location data is removed before upload.' }));
+  }
+
+  function viewPhoto(ph, again) {
+    const img = el('img', { className: 'photo-full', alt: 'Your photo' });
+    data.fullUrl(ph).then((u) => { img.src = u; }).catch(() => { img.replaceWith(el('p', { textContent: "Couldn't load this photo." })); });
+    const del = el('button', { type: 'button', className: 'btn danger', textContent: 'Delete this photo' });
+    del.addEventListener('click', async () => {
+      del.disabled = true;
+      try { await data.deletePhoto(ph); closeSheet(); toast('Photo deleted.'); again(); } catch (e) { fail(e); del.disabled = false; }
+    });
+    openSheet(img, del, cancelBtn('Close'));
   }
 
   // ---------- Up next ----------

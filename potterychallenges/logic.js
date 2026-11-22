@@ -84,3 +84,41 @@ export function dateFromInput(value) {
   return Number.isNaN(d.getTime()) || inputFromDate(d) !== value ? null : d;
 }
 export const inputFromDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// ---------- photos ----------
+// Scale a width and height down so the longest side is at most `max` (never up).
+export function scaleToFit(w, h, max) {
+  const long = Math.max(w, h);
+  if (long <= max) return { width: w, height: h };
+  const k = max / long;
+  return { width: Math.max(1, Math.round(w * k)), height: Math.max(1, Math.round(h * k)) };
+}
+
+// Looks inside a JPEG for hidden metadata that could carry a location: EXIF (where GPS lives),
+// XMP, and Photoshop/IPTC blocks. Re-drawing a photo onto a canvas drops all of it, and this
+// is the check that proves it before anything is uploaded. Walks the segment headers only.
+export function inspectJpeg(bytes) {
+  const out = { isJpeg: false, sensitive: [] };
+  if (!bytes || bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return out;
+  out.isJpeg = true;
+  const ascii = (start, n) => { let s = ''; for (let k = 0; k < n && start + k < bytes.length; k++) s += String.fromCharCode(bytes[start + k]); return s; };
+  let i = 2;
+  while (i + 4 <= bytes.length) {
+    if (bytes[i] !== 0xff) break;
+    const marker = bytes[i + 1];
+    if (marker === 0xff) { i += 1; continue; }                                   // fill byte
+    if (marker === 0xda || marker === 0xd9) break;                               // image data starts: no more headers
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) { i += 2; continue; } // markers with no length
+    const len = (bytes[i + 2] << 8) | bytes[i + 3];
+    if (len < 2) break;
+    const body = i + 4;
+    if (marker === 0xe1) {
+      const head = ascii(body, 30);
+      if (head.startsWith('Exif')) out.sensitive.push('EXIF');
+      else if (head.startsWith('http://ns.adobe.com/xap')) out.sensitive.push('XMP');
+      else out.sensitive.push('APP1');
+    } else if (marker === 0xed) out.sensitive.push('PHOTOSHOP');
+    i += 2 + len;
+  }
+  return out;
+}

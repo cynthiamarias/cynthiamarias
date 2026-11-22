@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isVisible, matches, pool, pick, pushRecent, dots, NO_FILTERS, STAGES, STAGE_LABEL, isOpen, toMs, queueOf, historyOf, nextOrder, findOpenFor, swapTarget, dateFromInput, inputFromDate } from '../../potterychallenges/logic.js';
+import { isVisible, matches, pool, pick, pushRecent, dots, NO_FILTERS, STAGES, STAGE_LABEL, isOpen, toMs, queueOf, historyOf, nextOrder, findOpenFor, swapTarget, dateFromInput, inputFromDate, scaleToFit, inspectJpeg } from '../../potterychallenges/logic.js';
 
 const mk = (id, over = {}) => ({ id, category: 'functional-forms', difficulty: 3, timeBand: 'weekend', firing: 'electric-cone5', seasons: ['any'], ...over });
 
@@ -169,4 +169,68 @@ test('date pickers: a chosen day becomes noon local time, round-trips, and bad i
   assert.equal(dateFromInput('2026-12-31').getDate(), 31);
   assert.equal(dateFromInput('2024-02-29').getMonth(), 1);
   for (const bad of ['', null, undefined, 'tomorrow', '2026-13-45x', '22-11-2026', '2026-02-31', '2026-13-01', '2026-00-10', '2026-04-31']) assert.equal(dateFromInput(bad), null, String(bad));
+});
+
+// ---------- photos ----------
+test('scaleToFit shrinks the long side to the limit, keeps the shape, and never enlarges', () => {
+  assert.deepEqual(scaleToFit(4000, 3000, 2048), { width: 2048, height: 1536 });
+  assert.deepEqual(scaleToFit(3000, 4000, 2048), { width: 1536, height: 2048 });
+  assert.deepEqual(scaleToFit(1000, 800, 2048), { width: 1000, height: 800 });
+  assert.deepEqual(scaleToFit(2048, 2048, 2048), { width: 2048, height: 2048 });
+  assert.deepEqual(scaleToFit(4000, 3000, 480), { width: 480, height: 360 });
+  assert.deepEqual(scaleToFit(10000, 1, 480), { width: 480, height: 1 });
+});
+
+// Build a tiny fake JPEG: start marker, the listed segments, then image data and an end marker.
+const seg = (marker, text, pad = 0) => {
+  const body = [...Buffer.from(text, 'latin1'), ...Array(pad).fill(0)];
+  const len = body.length + 2;
+  return [0xff, marker, len >> 8, len & 0xff, ...body];
+};
+const jpeg = (...segments) => new Uint8Array([0xff, 0xd8, ...segments.flat(), 0xff, 0xda, 0x00, 0x04, 0x00, 0x00, 1, 2, 3, 0xff, 0xd9]);
+const JFIF = seg(0xe0, 'JFIF\0', 9);
+
+test('a plain JPEG with just a JFIF header is clean', () => {
+  const r = inspectJpeg(jpeg(JFIF));
+  assert.equal(r.isJpeg, true);
+  assert.deepEqual(r.sensitive, []);
+});
+
+test('EXIF (where GPS lives) is found', () => {
+  const r = inspectJpeg(jpeg(JFIF, seg(0xe1, 'Exif\0\0MM GPSLatitude 37.77 GPSLongitude -122.41', 20)));
+  assert.deepEqual(r.sensitive, ['EXIF']);
+});
+
+test('EXIF is found even when it comes first, with no JFIF header', () => {
+  assert.deepEqual(inspectJpeg(jpeg(seg(0xe1, 'Exif\0\0', 30))).sensitive, ['EXIF']);
+});
+
+test('XMP, Photoshop blocks and unknown APP1 data are all flagged', () => {
+  assert.deepEqual(inspectJpeg(jpeg(seg(0xe1, 'http://ns.adobe.com/xap/1.0/\0<x:xmpmeta/>'))).sensitive, ['XMP']);
+  assert.deepEqual(inspectJpeg(jpeg(seg(0xed, 'Photoshop 3.0\0', 10))).sensitive, ['PHOTOSHOP']);
+  assert.deepEqual(inspectJpeg(jpeg(seg(0xe1, 'MysteryData'))).sensitive, ['APP1']);
+});
+
+test('several kinds together are all reported', () => {
+  const r = inspectJpeg(jpeg(JFIF, seg(0xe1, 'Exif\0\0abc'), seg(0xe1, 'http://ns.adobe.com/xap/1.0/\0x'), seg(0xed, 'Photoshop 3.0\0')));
+  assert.deepEqual(r.sensitive, ['EXIF', 'XMP', 'PHOTOSHOP']);
+});
+
+test('comments and colour profiles are not treated as sensitive', () => {
+  assert.deepEqual(inspectJpeg(jpeg(JFIF, seg(0xfe, 'a harmless comment'), seg(0xe2, 'ICC_PROFILE\0', 20))).sensitive, []);
+});
+
+test('text that merely looks like EXIF inside the image data is ignored', () => {
+  const bytes = new Uint8Array([0xff, 0xd8, ...JFIF, 0xff, 0xda, 0x00, 0x04, 0x00, 0x00, ...Buffer.from('Exif\0\0 GPS'), 0xff, 0xd9]);
+  assert.deepEqual(inspectJpeg(bytes).sensitive, []);
+});
+
+test('non-JPEG data, empty data and truncated data never crash', () => {
+  assert.equal(inspectJpeg(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3])).isJpeg, false); // PNG header
+  assert.equal(inspectJpeg(new Uint8Array([])).isJpeg, false);
+  assert.equal(inspectJpeg(null).isJpeg, false);
+  assert.equal(inspectJpeg(new Uint8Array([0xff, 0xd8])).isJpeg, false);
+  const cut = jpeg(JFIF, seg(0xe1, 'Exif\0\0xxxxxxxxxxxxxxxx')).slice(0, 30);
+  assert.doesNotThrow(() => inspectJpeg(cut));
+  assert.deepEqual(inspectJpeg(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x00, 0x45])).sensitive, []); // bogus zero length
 });
