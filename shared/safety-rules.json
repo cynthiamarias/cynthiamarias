@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "kiln": {
+    "name": "Olympic 1827HE (electric, oxidation only)",
+    "maxFiredWidthIn": 16,
+    "maxFiredHeightIn": 22,
+    "note": "Interior is 18 in across and 27 in deep. Limits leave room for shelves, posts and element clearance."
+  },
+  "bannedAnywhere": [
+    { "id": "lead-compound", "pattern": "\\b(white lead|red lead|lead (oxide|carbonate|bisilicate|monosilicate|sesquisilicate|chromate|frit|glaze|paint|crystal)|galena|litharge|minium|PbO|Pb)\\b", "reason": "Lead is never allowed in any recipe, material or instruction." },
+    { "id": "other-banned-material", "pattern": "\\b(uranium|thorium|arsenic|mercury|asbestos|beryllium)\\b", "reason": "Banned material." },
+    { "id": "saggar", "pattern": "\\bsaggar(s)?\\b", "reason": "Saggar firing is excluded from this library." },
+    { "id": "combustibles-in-electric-kiln", "pattern": "\\b(sawdust|newspaper|foil|salt|combustibles?|seaweed|copper wire)\\b[^.]{0,80}\\b(in|inside|into) (the|your|an?) (electric )?kiln\\b", "reason": "No combustibles or fuming materials in the electric kiln: they damage elements and release fumes." }
+  ],
+  "bareLeadWarning": {
+    "pattern": "\\blead\\b",
+    "allowedContexts": ["lead-free", "lead free", "no lead", "without lead", "free of lead", "lead to ", "lead the ", "lead into", "lead you", "lead with", "lead in", "lead off"],
+    "reason": "Bare 'lead' is flagged for human review (it is usually fine as a verb, never fine as a material)."
+  },
+  "requiredHazardNotes": [
+    { "id": "barium", "pattern": "\\bbarium\\b", "scope": "all" },
+    { "id": "lithium", "pattern": "\\b(lithium|spodumene|petalite|lepidolite)\\b", "scope": "all" },
+    { "id": "manganese", "pattern": "\\bmanganese\\b", "scope": "all" },
+    { "id": "chromium", "pattern": "\\b(chrome|chromium|chromic oxide|chromate)\\b", "scope": "all" },
+    { "id": "cobalt", "pattern": "\\bcobalt\\b", "scope": "all" },
+    { "id": "nickel", "pattern": "\\bnickel\\b", "scope": "all" },
+    { "id": "copper", "pattern": "\\bcopper\\b", "scope": "all" },
+    { "id": "vanadium", "pattern": "\\bvanadium\\b", "scope": "all" },
+    { "id": "cadmium-selenium", "pattern": "\\b(cadmium|selenium)\\b", "scope": "all" },
+    { "id": "zinc", "pattern": "\\bzinc\\b", "scope": "all" },
+    { "id": "strontium", "pattern": "\\bstrontium\\b", "scope": "all" },
+    { "id": "antimony", "pattern": "\\bantimony\\b", "scope": "all" },
+    { "id": "silica", "pattern": "\\b(silica|flint|quartz)\\b", "scope": "materials" }
+  ],
+  "firingsNeedingFiringNotes": ["raku", "pit", "obvara", "smoke"],
+  "firingNotesFields": ["fumes", "fire", "burnBan", "ppe"],
+  "hangingNotesFields": ["holes", "weight", "wiring"],
+  "reductionPattern": "\\b(reduction|copper red|oxblood|celadon|shino|tenmoku|carbon trap)\\b",
+  "reductionWorkaroundPattern": "\\b(local reduction|silicon carbide|oxidation-friendly|oxidation version|oxidation alternative|raku|pit|obvara|smoke|post-firing reduction)\\b"
+}

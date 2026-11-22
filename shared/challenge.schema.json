@@ -1,0 +1,164 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "challenge.schema.json",
+  "title": "Pottery challenge (provisional, schemaVersion 1)",
+  "description": "PROVISIONAL. This is the only file that defines challenge contents. To replace it, swap this file and the facets() function in validate.mjs, then bump schemaVersion.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "summary", "category", "techniques", "difficulty", "timeBand", "challengeType", "brief", "constraints", "materials", "safety"],
+  "properties": {
+    "title": { "type": "string", "minLength": 3, "maxLength": 60 },
+    "summary": { "type": "string", "minLength": 10, "maxLength": 200 },
+    "category": { "type": "string" },
+    "techniques": { "type": "array", "minItems": 1, "maxItems": 6, "items": { "type": "string" } },
+    "difficulty": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "timeBand": { "type": "string" },
+    "challengeType": { "type": "string" },
+    "seasons": { "type": "array", "items": { "type": "string" } },
+    "brief": { "type": "string", "minLength": 20, "maxLength": 700 },
+    "constraints": { "type": "array", "minItems": 1, "maxItems": 6, "items": { "type": "string", "maxLength": 160 } },
+    "steps": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 240 } },
+    "materials": { "type": "array", "minItems": 1, "maxItems": 12, "items": { "type": "string", "maxLength": 120 } },
+    "maxSizeIn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "glaze": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cone", "atmosphere", "status"],
+      "properties": {
+        "cone": { "type": "integer", "minimum": 5, "maximum": 10 },
+        "cone10Optional": { "type": "boolean" },
+        "atmosphere": { "type": "string", "enum": ["oxidation"] },
+        "status": { "type": "string", "const": "untested-not-food-safe" },
+        "recipe": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["material", "parts"],
+            "properties": {
+              "material": { "type": "string", "minLength": 2 },
+              "parts": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        "colorants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["material", "percent"],
+            "properties": {
+              "material": { "type": "string", "minLength": 2 },
+              "percent": { "type": "number", "exclusiveMinimum": 0, "maximum": 20 }
+            }
+          }
+        }
+      }
+    },
+    "firing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string" },
+        "cone": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "cone10Optional": { "type": "boolean" },
+        "schedule": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rateFPerHr", "targetF", "holdMin"],
+            "properties": {
+              "rateFPerHr": { "type": "number", "minimum": 0 },
+              "targetF": { "type": "number", "minimum": 0, "maximum": 2400 },
+              "holdMin": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "tradition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "region", "credit"],
+      "properties": {
+        "name": { "type": "string" },
+        "region": { "type": "string" },
+        "credit": { "type": "string", "minLength": 10, "maxLength": 300 }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["leadFree", "hazards", "foodSafety", "general"],
+      "properties": {
+        "leadFree": { "type": "boolean", "const": true },
+        "hazards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["material", "risk", "handling"],
+            "properties": {
+              "material": { "type": "string", "minLength": 2 },
+              "risk": { "type": "string", "minLength": 5 },
+              "handling": { "type": "string", "minLength": 5 }
+            }
+          }
+        },
+        "foodSafety": { "type": "string", "enum": ["not-applicable", "untested-not-food-safe"] },
+        "firingNotes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fumes", "fire", "burnBan", "ppe"],
+          "properties": {
+            "fumes": { "type": "string", "minLength": 5 },
+            "fire": { "type": "string", "minLength": 5 },
+            "burnBan": { "type": "string", "minLength": 5 },
+            "ppe": { "type": "string", "minLength": 5 }
+          }
+        },
+        "hangingNotes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["holes", "weight", "wiring"],
+          "properties": {
+            "holes": { "type": "string", "minLength": 5 },
+            "weight": { "type": "string", "minLength": 5 },
+            "wiring": { "type": "string", "minLength": 5 }
+          }
+        },
+        "general": { "type": "string", "minLength": 10, "maxLength": 400 }
+      }
+    },
+    "inspiration": { "type": "string", "maxLength": 160 },
+    "remixHooks": { "type": "array", "maxItems": 6, "items": { "type": "string", "maxLength": 60 } }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["glaze"] },
+      "then": { "properties": { "safety": { "properties": { "foodSafety": { "const": "untested-not-food-safe" } } } } }
+    },
+    {
+      "if": { "required": ["firing"], "properties": { "firing": { "properties": { "type": { "enum": ["raku", "pit", "obvara", "smoke"] } } } } },
+      "then": { "properties": { "safety": { "required": ["firingNotes"] } } }
+    },
+    {
+      "if": { "properties": { "challengeType": { "const": "hanging" } }, "required": ["challengeType"] },
+      "then": { "properties": { "safety": { "required": ["hangingNotes"] } } }
+    },
+    {
+      "if": { "properties": { "category": { "const": "wall-hanging-light" } }, "required": ["category"] },
+      "then": { "properties": { "safety": { "required": ["hangingNotes"] } } }
+    }
+  ]
+}

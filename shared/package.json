@@ -1,0 +1,12 @@
+{
+  "name": "potterychallenges-shared",
+  "private": true,
+  "type": "module",
+  "description": "Challenge schema, taxonomy, safety rules and validator shared by the seed pipeline and the Cloud Function.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\""
+  },
+  "dependencies": {
+    "ajv": "^8.17.1"
+  }
+}

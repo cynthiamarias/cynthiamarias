@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Private photos live under users/{uid}/photos/{photoId}/ and only their owner (who must
+// also be on the Firestore allowlist) can read or write them. public/ is for copies made
+// later by a function when someone chooses to share a photo; clients can never write there.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function allowlisted() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && firestore.exists(/databases/(default)/documents/allowlist/$(request.auth.token.email.lower()));
+    }
+
+    match /users/{uid}/photos/{photoId}/{file} {
+      allow read, delete: if allowlisted() && request.auth.uid == uid;
+      allow create, update: if allowlisted() && request.auth.uid == uid
+        && (file == 'full.jpg' || file == 'thumb.jpg')
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size < 4 * 1024 * 1024;
+    }
+
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

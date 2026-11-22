@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "categories": [
+    { "id": "wheel-throwing", "label": "Wheel throwing" },
+    { "id": "handbuilding", "label": "Pinch and coil" },
+    { "id": "slab-work", "label": "Slab work" },
+    { "id": "functional-forms", "label": "Functional forms" },
+    { "id": "animals-nature", "label": "Animals and nature" },
+    { "id": "flowers-botanical", "label": "Flowers and botanical" },
+    { "id": "wall-hanging-light", "label": "Wall, hanging and light" },
+    { "id": "surface-decoration", "label": "Surface and texture" },
+    { "id": "jewelry-small", "label": "Jewelry and small objects" },
+    { "id": "seasonal", "label": "Seasonal" },
+    { "id": "sculpture-figurative", "label": "Figurative sculpture" },
+    { "id": "glaze-application", "label": "Glaze application (premixed)" },
+    { "id": "glaze-chemistry", "label": "Glaze chemistry (from scratch)", "heldBack": true },
+    { "id": "alt-firing", "label": "Alternative firings" },
+    { "id": "technical-study", "label": "Technical studies" }
+  ],
+  "challengeTypes": [
+    "constraint", "surface", "set", "variation-series", "holes", "hanging",
+    "seasonal", "figurative", "glaze-chemistry", "firing", "open"
+  ],
+  "techniques": [
+    "throwing", "trimming", "pulled-handles", "pinch", "coil", "slab", "hump-slump-mold",
+    "modeling", "hollowing", "texture-impressing", "stamping",
+    "sgraffito", "mishima", "slip-trailing", "carving", "terra-sigillata", "stencil-resist",
+    "underglaze", "wax-resist", "glaze-layering", "test-tiles", "inlay-buncheong",
+    "paddle-and-anvil-onggi", "ventilation-holes", "hanging-holes", "sets-of-three-or-four",
+    "kintsugi-style-repair", "raku", "pit-firing", "obvara", "smoke-firing",
+    "bisque-firing", "firing-schedule"
+  ],
+  "firingTypes": {
+    "air-dry": { "outsideKiln": false },
+    "bisque-only": { "outsideKiln": false },
+    "electric-cone5": { "outsideKiln": false },
+    "raku": { "outsideKiln": true },
+    "pit": { "outsideKiln": true },
+    "obvara": { "outsideKiln": true },
+    "smoke": { "outsideKiln": true }
+  },
+  "seasons": ["any", "spring", "summer", "autumn", "winter", "valentines", "easter", "halloween", "christmas"],
+  "timeBands": ["one-session", "weekend", "multi-week"],
+  "difficulty": {
+    "1": "First try: forgiving and quick",
+    "2": "Comfortable with the basics",
+    "3": "Intermediate: needs planning",
+    "4": "Advanced: precision or risk",
+    "5": "Expert: multi-stage or technically demanding"
+  }
+}
